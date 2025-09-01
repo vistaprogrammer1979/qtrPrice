@@ -1,0 +1,424 @@
+package com.santechture.price.qatart;
+
+import java.util.ArrayList
+import java.util.Set
+import java.util.Date
+import com.santechture.request.ClaimType
+import com.santechture.request.Workflow
+import com.santechture.Facility
+import com.santechture.request.ObservationOutcome
+import com.santechture.SPCCodeFactor
+import com.santechture.request.Activity
+import com.santechture.ObseleteEncounter
+import com.santechture.request.Diagnosis
+import com.santechture.request.ClaimOutcome
+import com.santechture.dao.DAO
+import com.santechture.request.ActivityOutcome
+import com.santechture.request.WorkflowOutcome
+import com.santechture.request.Contract
+import com.santechture.CusPriceList
+import com.santechture.CusIP_ARDRGPriceListItem
+import com.santechture.CusRadiology_ACHIPriceListItem
+import com.santechture.CusIP_SUBPriceListItem
+import com.santechture.CusOP_QOCSPriceListItem
+import com.santechture.CusEmergencyURGPriceListItem
+import com.santechture.CusDentistryASDSGPriceListItem
+import com.santechture.request.DiagnosisOutcome
+import com.santechture.request.AppliedDeductible
+import com.santechture.SPCGroupFactor
+import com.santechture.request.EncounterOutcome
+import com.santechture.GroupCodesRange
+import com.santechture.CusContract
+import com.santechture.SPCContract
+import com.santechture.request.AppliedCopayment
+import com.santechture.ObseleteClaim
+import com.santechture.request.Request
+import com.santechture.request.Authorisation
+import com.santechture.request.PatientInsurance
+import com.santechture.request.ExtendedValidationType
+import com.santechture.Severity
+import com.santechture.request.Encounter
+import com.santechture.ObseleteActivity
+import com.santechture.request.PatientOutcome
+import com.santechture.ControlFact
+import com.santechture.request.Observation
+import com.santechture.DrugPrice
+import com.santechture.request.ContractOutcome
+import com.santechture.request.CodeType
+import com.santechture.request.ActivityGroup
+import com.santechture.CusPriceListItem
+import com.santechture.ObseleteClaimInfo
+import com.santechture.request.AuthorisationOutcome
+import com.santechture.request.Header
+import com.santechture.MasterPriceListItem
+import com.santechture.MasterPriceList
+import com.santechture.request.RequestOutcome
+import com.santechture.request.PatientInsuranceOutcome
+import com.santechture.Clinician
+import com.santechture.request.ResubmissionOutcome
+import com.santechture.request.Patient
+import com.santechture.request.Resubmission
+import com.santechture.request.Claim
+import com.santechture.Regulator
+import com.santechture.ObseleteDiagnosis
+import com.santechture.request.HeaderOutcome
+import com.santechture.CodeGroup
+import com.santechture.FacilityType
+import com.santechture.request.ExtendedValidationTypeOutcome
+import com.santechture.request.CoPayment
+import com.santechture.request.CoInsurance
+import com.santechture.request.Deductible
+import com.santechture.DHA_DRG
+import com.santechture.DHA_DRG_HighCost
+import com.santechture.DRGExcludedCpts
+import com.santechture.DHA_DRG_COST_PER_ACTIVITY
+import com.santechture.PackageCode
+import com.santechture.CustomCode
+import com.santechture.PackageItemCode
+import com.santechture.RCMFacilityCodeMapping
+
+//--------------------------------------------------
+
+rule 'No_PRICE_Radiology_ACHI_Out_of_Date'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.RADIOLOGY_ACHI)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:radiologyAchiPriceListId)
+
+	CusPriceList($cuspriceListId:id, $encStart< startDate|| $encStart> endDate
+      ,priceListType=="Radiology_ACHI")
+	CusRadiology_ACHIPriceListItem(pricListId==$cuspriceListId, code==$code, price !=null,$price:price)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No RADIOLOGY_ACHI list price, because Encounter Start"+$encStart+" is out of date ";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//--------------------------------------------------
+rule 'No_PRICE_Radiology_ACHI'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.RADIOLOGY_ACHI)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:radiologyAchiPriceListId)
+	CusPriceList($cuspriceListId:id,priceListType=="Radiology_ACHI")
+	CusRadiology_ACHIPriceListItem(pricListId==$cuspriceListId, code==$code, price ==null,$price:price)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No RADIOLOGY_ACHI list price, because price is null.";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//--------------------------------------------------
+rule 'No_PRICE_Emergency_URG_Out_of_Date'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+
+	Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.ER_URG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:emergencyUrgPriceListId)
+	CusPriceList($cuspriceListId:id, $encStart< startDate|| $encStart> endDate
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="ER_URG")
+
+	CusEmergencyURGPriceListItem(pricListId==$cuspriceListId, code==$code, price !=null,$price:price)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No Emergency URG list price, because Encounter Start"+$encStart+" is out of date";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//-----------------------------------------
+rule 'No_PRICE_Emergency_URG'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	Encounter($encStart:start,start !=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.ER_URG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:emergencyUrgPriceListId)
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="ER_URG")
+
+	CusEmergencyURGPriceListItem(pricListId==$cuspriceListId, code==$code, price ==null,$price:price)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No Emergency URG list price, because Price is null";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//-----------------------------------------
+rule 'No_PRICE_IP_AR_DRG_Out_of_Date'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	Encounter($encStart:start,start!=null,lengthOfStay != null,$Stay:lengthOfStay) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+
+	CusPriceList($cuspriceListId:id, $encStart< startDate|| $encStart> endDate
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR-DRG")
+
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No Set IP_AR_DRG list price, because Encounter Start"+$encStart+" is out of date ";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//-----------------------------------------
+rule 'No_PRICE_IP_AR_DRG_No_lengthOfStay'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	Encounter($encStart:start,start!=null,lengthOfStay == null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+
+	CusPriceList($cuspriceListId:id
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR-DRG")
+
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code)
+then
+if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No Set IP_AR_DRG list price, because there is no Encounter Length of stay ";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+    }
+end
+//-----------------------------------------
+rule 'No_PRICE_IP_AR_DRG_Missing_Info_Same_Stay'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,lengthOfStay != null,$Stay:lengthOfStay,$Stay>0.0d && $Stay <= 1.0d) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR-DRG")
+
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code,
+	$sameDayPrice:sameDayPrice,sameDayPrice==null)
+
+then
+String sRuleName = drools.getRule().getName();
+	String msg=" No IP_AR_DRG list price, for["+$Stay+"] days Stay, because Same Day Price is null";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+end
+//-----------------------------------------
+//rrr
+rule 'NO_PRICE_IP_Subacute'
+dialect 'mvel'
+salience -99
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,
+	lengthOfStay != null,$Stay:lengthOfStay,
+    careType!=null,careType!="0",$careType:careType
+	) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$CID:inpatientSubacutePriceListId)
+
+	CusPriceList($cuspriceListId:id,$CID == id ,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="IP_SUB")
+
+CusIP_SUBPriceListItem(pricListId==$cuspriceListId, code==$careType,$price:price,price==null)
+
+then
+	String msg=" Can't use IP_Subacute list price,Because careType ["+$careType+"] doesn't have a price.";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+
+end
+//--------------------------------------------------------
+//rrr
+rule 'NO_PRICE_IP_Subacute_Code'
+dialect 'mvel'
+salience -99
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,
+	lengthOfStay != null,$Stay:lengthOfStay,
+    careType!=null ,careType!="0",$careType:careType
+	) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$CID:inpatientSubacutePriceListId)
+
+	CusPriceList($cuspriceListId:id,$CID == id ,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="IP_SUB")
+
+java.util.List(size==0) from collect(CusIP_SUBPriceListItem(pricListId==$cuspriceListId, code==$careType))
+
+then
+	String msg=" Can't use IP_Subacute list price,Because careType ["+$careType+"] doesn't exist .";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+
+end
+//--------------------------------------------------------
+
+//-----------------------------------------
+rule 'No_PRICE_IP_AR_DRG_Missing_Info_Normal_Stay'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,lengthOfStay != null,$Stay:lengthOfStay) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR-DRG")
+
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code,
+	$shortStayLessThan:shortStayLessThan,
+	$shortStayPrice:shortStayPrice,
+	$longStayMoreThan:longStayMoreThan,
+	$longStayPrice:longStayPrice,
+	$thresholdStay:thresholdStay,
+	$longStayThresholdPrice:longStayThresholdPrice,
+	$normalStayPrice:normalStayPrice,normalStayPrice==null,
+	$sameDayPrice:sameDayPrice)
+
+then
+String sRuleName = drools.getRule().getName();
+	String staymsg="";
+if ($Stay>0.0d && $Stay <= 1.0d && $sameDayPrice ==null){
+
+    staymsg=" Same Day Price is null ";
+}
+else if ($shortStayLessThan==null){
+    staymsg=" Short Stay length is null";
+}
+else if ($shortStayLessThan !=null && $Stay<$shortStayLessThan && $shortStayPrice==null){
+    staymsg=" Short Stay price is null";
+}
+else if ($longStayMoreThan==null){
+    staymsg=" long stay length is null ";}
+else if ($Stay>$shortStayLessThan && $Stay<$longStayMoreThan && $normalStayPrice==null ){
+    staymsg=" Normal Stay Price is null";}
+else if($thresholdStay == null){
+     staymsg=" threshold Stay is null ";}
+else if($Stay>$longStayMoreThan && $Stay <$thresholdStay && $longStayPrice==null){
+     staymsg=" Long Stay Price is null";}
+ else if ($Stay >$thresholdStay && $longStayThresholdPrice==null){
+    staymsg=" long Stay Threshold Price is null";
+    }
+
+	String msg=" No IP_AR_DRG list price, for["+$Stay+"] days Stay, because of "+staymsg ;
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+end
+//-----------------------------------------
+
+rule 'No_PRICE_OP_QOCS_Out_of_Date'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID,$visitType:visitType,visitType!=null)
+	Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.OP_QOCS)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$OPQOCSID:outpatientQocsPriceListId)
+
+	CusPriceList($cuspriceListId:id, $encStart< startDate|| $encStart> endDate
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="OP_QOCS")
+
+CusOP_QOCSPriceListItem( pricListId==$cuspriceListId, code==$code,
+price !=null,$price:price,
+followUpPrice !=null,$followUpPrice:followUpPrice)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No OP_QOCS list price, because Encounter Start"+$encStart+" is out of date.";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//-----------------------------------------
+rule 'No_PRICE_OP_QOCS_No_VisitType'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID,visitType==null)
+	Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.OP_QOCS)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$OPQOCSID:outpatientQocsPriceListId)
+
+	CusPriceList($cuspriceListId:id
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="OP_QOCS")
+
+CusOP_QOCSPriceListItem( pricListId==$cuspriceListId, code==$code,
+price !=null,$price:price,
+followUpPrice !=null,$followUpPrice:followUpPrice)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No OP_QOCS list price, because there is no  Visit type.";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end
+//-----------------------------------------
+rule 'No_PRICE_OP_QOCS'
+dialect 'mvel'
+salience -101
+no-loop
+when
+	$c:Claim($CUS_ID: CUS_ID,visitType!=null)
+	Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.OP_QOCS)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$OPQOCSID:outpatientQocsPriceListId)
+
+	CusPriceList($cuspriceListId:id
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="OP_QOCS")
+
+CusOP_QOCSPriceListItem( pricListId==$cuspriceListId, code==$code,price ==null)
+then
+//if(debugMode()){
+	String sRuleName = drools.getRule().getName();
+	String msg=" No OP_QOCS list price, because there is no Price.";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+//    }
+end

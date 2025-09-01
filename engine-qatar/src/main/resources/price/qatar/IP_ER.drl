@@ -1,0 +1,286 @@
+package com.santechture.price.qatart;
+
+import java.util.ArrayList
+import java.util.Set
+import java.util.Date
+import com.santechture.request.ClaimType
+import com.santechture.request.Workflow
+import com.santechture.Facility
+import com.santechture.request.ObservationOutcome
+import com.santechture.SPCCodeFactor
+import com.santechture.request.Activity
+import com.santechture.ObseleteEncounter
+import com.santechture.request.Diagnosis
+import com.santechture.request.ClaimOutcome
+import com.santechture.dao.DAO
+import com.santechture.request.ActivityOutcome
+import com.santechture.request.WorkflowOutcome
+import com.santechture.request.Contract
+import com.santechture.CusPriceList
+import com.santechture.request.DiagnosisOutcome
+import com.santechture.request.AppliedDeductible
+import com.santechture.SPCGroupFactor
+import com.santechture.request.EncounterOutcome
+import com.santechture.GroupCodesRange
+import com.santechture.CusContract
+import com.santechture.SPCContract
+import com.santechture.request.AppliedCopayment
+import com.santechture.ObseleteClaim
+import com.santechture.request.Request
+import com.santechture.request.Authorisation
+import com.santechture.request.PatientInsurance
+import com.santechture.request.ExtendedValidationType
+import com.santechture.Severity
+import com.santechture.request.Encounter
+import com.santechture.ObseleteActivity
+import com.santechture.request.PatientOutcome
+import com.santechture.ControlFact
+import com.santechture.request.Observation
+import com.santechture.DrugPrice
+import com.santechture.request.ContractOutcome
+import com.santechture.request.CodeType
+import com.santechture.request.ActivityGroup
+import com.santechture.CusPriceListItem
+import com.santechture.ObseleteClaimInfo
+import com.santechture.request.AuthorisationOutcome
+import com.santechture.request.Header
+import com.santechture.MasterPriceListItem
+import com.santechture.MasterPriceList
+import com.santechture.request.RequestOutcome
+import com.santechture.request.PatientInsuranceOutcome
+import com.santechture.Clinician
+import com.santechture.request.ResubmissionOutcome
+import com.santechture.request.Patient
+import com.santechture.request.Resubmission
+import com.santechture.request.Claim
+import com.santechture.Regulator
+import com.santechture.ObseleteDiagnosis
+import com.santechture.request.HeaderOutcome
+import com.santechture.CodeGroup
+import com.santechture.FacilityType
+import com.santechture.request.ExtendedValidationTypeOutcome
+import com.santechture.request.CoPayment
+import com.santechture.request.Deductible
+import com.santechture.DHA_DRG
+import com.santechture.DHA_DRG_HighCost
+import com.santechture.DRGExcludedCpts
+import com.santechture.DHA_DRG_COST_PER_ACTIVITY
+import com.santechture.PackageCode
+import com.santechture.CustomCode
+import com.santechture.PackageItemCode
+import com.santechture.RCMFacilityCodeMapping
+
+
+//--------------------------------------------
+//RHMC-371
+rule 'QPE105_Discount100_101000111801090000_COVID19_Inpatient'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+    $c:Claim(patient != null,providerID !=null,providerID =="101000024451")
+    $act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+    $p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(IsIP(type),startType!=12/*Emergency or urgent admissions*/,start!=null,start.getTime()>=getTimefromDate("06/03/2022 18:28:52")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+
+//-------------------------------------------
+//RHMC-372
+rule 'QPE106_Discount100_101000111801090000_COVID19_Inpatient'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+    $c:Claim(patient != null,providerID in ("101000024449","101000024451"))
+    $act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+    $p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(IsIP(type),startType!=12/*Emergency or urgent admissions*/,start!=null,start.getTime()>=getTimefromDate("06/03/2022 23:59")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------
+//RHMC-373
+rule 'QPE107_Discount100_10100012178400200_COVID19_InPatients_Ras_Laffan_Location'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+$c:Claim(patient != null,providerID =="101000036594")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(IsIP(type),startType!=12/*Emergency or urgent admissions*/,start!=null,start.getTime()>=getTimefromDate("15/02/2021 14:31:27"),start.getTime()<getTimefromDate("09/03/2022 23:59:59")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//---------------------------------------------
+//RHMC-374
+rule 'QPE108_Discount100_10100012180100000_COVID19_Inpatient'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+$c:Claim(patient != null,providerID in ("101000024449","101000024451"))
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(IsIP(type),startType!=12/*Emergency or urgent admissions*/,start!=null,start.getTime()>=getTimefromDate("28/04/2020 2:11:30 PM")&& start.getTime()<getTimefromDate("06/03/2022 12:00:00 PM")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//----------------------------------------------------------------------------
+//RHMC-375
+rule 'QPE109_Discount100_10100012180100000_COVID19_Inpatient'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,serviceItemSerialNumber =='101000124057')
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(IsIP(type),startType!=12/*Emergency or urgent admissions*/,start!=null,start.getTime()>=getTimefromDate("09/12/2021 8:45:12")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//----------------------------------------------------------------
+//RHMC-376
+rule 'QPE110_Discount100_10100012178400100_48h_all_facilties_except_NCCCR_ACC_QRI'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+    $c:Claim(patient != null,providerID != null,providerID not in ("101000032987","101000024474","101000024465", "101000032606","101000032986","101000038029"))
+    $act:Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type,serviceItemSerialNumber not in ("101000093831","101000102361","101000102362","101000102363","101000101554","101000120720","101000099540","101000118156","101000128413","101000128457"))
+    $CG: CodeGroup(code==$code, type==$type,name not in("Surgical Supplies - Artificial Implant,PROSTHETIC AND ORTHOPEDIC SUPPLIES","9910","9110","Equipment Lending","External Lab" ))
+    //duration is <= 48 hours
+    $p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(!IsOP(type),startType==13/*Emergency*/,
+    location!=null,location in ("AK OBG ED Hold","AK OBG Emergency","AK OBG Emergency Department","WH Labor","WH ED","WH Obs Gyne","AW OBGYN ED Hold","AW ObsGyn ED Observation","AW ObsGyn Emergency Department","WH East 6","AW Labour Room"),
+    inchargeDoctorSpecialty==null || (inchargeDoctorSpecialty !=null && inchargeDoctorSpecialty not in ("101000000584","101000000585","101000011421","101000011433","101000000618")),
+    start!=null,start.getTime()>=getTimefromDate("01/04/2020 5:00:00")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//-------------
+//RHMC-377
+rule 'QPE111_Discount100_10100012178400100_48h'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+    $c:Claim(patient != null,providerID not in ("101000032987","101000024474") )
+    //duration <=48hours = 172,800,000 ms
+    $act:Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type,
+    serviceItemSerialNumber not in ("101000093831","101000102361","101000102362","101000102363","101000120720","101000099540","101000118156","101000128413","101000128457"))
+    $CG: CodeGroup(code==$code, type==$type,name not in ("External Lab","Surgical Supplies - Artificial Implant","PROSTHETIC AND ORTHOPEDIC SUPPLIES","9910" ,"9110","Equipment Lending"))
+    $p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(!IsOP(type),startType==13/*Emergency*/,
+    inchargeDoctorSpecialty==null || (inchargeDoctorSpecialty !=null &&  inchargeDoctorSpecialty not in ("101000000584","101000000585","101000011421","101000011433","101000000618")),
+    location!=null,location not in ("AK OBG ED Hold","AK OBG Emergency","AK OBG Emergency Department","WH Labor","WH ED","WH Obs Gyne","AW OBGYN ED Hold","AW ObsGyn ED Observation","AW ObsGyn Emergency Department","WH East 6","AW Labour Room"),
+    end !=null,start !=null,
+    $duration:end.getTime()-start.getTime(),$duration<=172800000,
+    start.getTime()>=getTimefromDate("01/04/2020 5:00:00")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//---------------------
+//RHMC-378
+rule 'QPE112_Discount100_10100012178400200_COVID19_Inpatient'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+    $c:Claim(patient != null,providerID in ("101000024449","101000024451") )
+    $act:Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+    $p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(IsIP(type),startType!=12/*Emergency or urgent admissions*/,start!=null,start.getTime()>=getTimefromDate("23/06/2021 1:50:18"),start.getTime()<getTimefromDate("06/03/2022 12:00:00")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//----------------------------------------------------------
+//RHMC-379
+rule 'QPE113_Discount100_10100012178400200_RH_Elderly_UCU_Daycare'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+    $c:Claim(patient != null)
+    $act:Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+    $p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(location!=null,location== "RH Elderly UCU",IsIP(type),startType==12/*Emergency or urgent admissions*/,
+    start!=null,start.getTime()>=getTimefromDate("23/06/2021 15:14:29")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+    String msg = "Set"+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//---------------------------------------------------------
+//RHMC-380
+//rule 'QPE114_Discount100_10100012178400000_Emergency'
+//dialect 'mvel'
+//salience -1001
+//no-loop
+//when
+//$c:Claim(patient != null,providerID !=101000024474)
+
+//Location NOT in ("AK OBG ED Hold","AK OBG Emergency","AK OBG Emergency Department","AW OBGYN ED Hold","AW Obs Gyn ED","AW ObsGyn ED Observation","AW ObsGyn Emergency Department","WW Emergency Dep")
+//$act:Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type,serviceItemSerialNumber not in ("101000120720","101000118156"))
+//$CG: CodeGroup(code==$code, type==$type,name not in ("EXTLAB""Surgical Supplies - Artificial Implant","PROSTHETIC AND ORTHOPEDIC SUPPLIES","9910","9110"))
+//$p:Patient(patientInsurance != null) from $c.patient
+//    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+//// OR all service items except Emergency Visit - Non Urgent,ARTIFICIAL IMPLANT)
+// and duration <= 48 and clinician (Encounter( then 100% discount needs to be applied
+//Encounter(inchargeDoctorSpecialty==null || (inchargeDoctorSpecialty !=null && inchargeDoctorSpecialty not in (101000000584,101000000618,101000000585,101000011433)),type == 13 /*E*/,start!=null,start.getTime()>=getTimefromDate("01/03/2014 2:50:56 PM").getTime()) from $c.encounter
+

@@ -1,0 +1,474 @@
+package com.santechture.price.qatart;
+
+import java.util.ArrayList
+import java.util.Set
+import java.util.Date
+import com.santechture.request.ClaimType
+import com.santechture.request.Workflow
+import com.santechture.Facility
+import com.santechture.request.ObservationOutcome
+import com.santechture.SPCCodeFactor
+import com.santechture.request.Activity
+import com.santechture.ObseleteEncounter
+import com.santechture.request.Diagnosis
+import com.santechture.request.ClaimOutcome
+import com.santechture.dao.DAO
+import com.santechture.request.ActivityOutcome
+import com.santechture.request.WorkflowOutcome
+import com.santechture.request.Contract
+import com.santechture.CusPriceList
+import com.santechture.request.DiagnosisOutcome
+import com.santechture.request.AppliedDeductible
+import com.santechture.SPCGroupFactor
+import com.santechture.request.EncounterOutcome
+import com.santechture.GroupCodesRange
+import com.santechture.CusContract
+import com.santechture.SPCContract
+import com.santechture.request.AppliedCopayment
+import com.santechture.ObseleteClaim
+import com.santechture.request.Request
+import com.santechture.request.Authorisation
+import com.santechture.request.PatientInsurance
+import com.santechture.request.ExtendedValidationType
+import com.santechture.Severity
+import com.santechture.request.Encounter
+import com.santechture.ObseleteActivity
+import com.santechture.request.PatientOutcome
+import com.santechture.ControlFact
+import com.santechture.request.Observation
+import com.santechture.DrugPrice
+import com.santechture.request.ContractOutcome
+import com.santechture.request.CodeType
+import com.santechture.request.ActivityGroup
+import com.santechture.CusPriceListItem
+import com.santechture.ObseleteClaimInfo
+import com.santechture.request.AuthorisationOutcome
+import com.santechture.request.Header
+import com.santechture.MasterPriceListItem
+import com.santechture.MasterPriceList
+import com.santechture.request.RequestOutcome
+import com.santechture.request.PatientInsuranceOutcome
+import com.santechture.Clinician
+import com.santechture.request.ResubmissionOutcome
+import com.santechture.request.Patient
+import com.santechture.request.Resubmission
+import com.santechture.request.Claim
+import com.santechture.Regulator
+import com.santechture.ObseleteDiagnosis
+import com.santechture.request.HeaderOutcome
+import com.santechture.CodeGroup
+import com.santechture.FacilityType
+import com.santechture.request.ExtendedValidationTypeOutcome
+import com.santechture.request.CoPayment
+import com.santechture.request.Deductible
+import com.santechture.DHA_DRG
+import com.santechture.DHA_DRG_HighCost
+import com.santechture.DRGExcludedCpts
+import com.santechture.DHA_DRG_COST_PER_ACTIVITY
+import com.santechture.PackageCode
+import com.santechture.CustomCode
+import com.santechture.PackageItemCode
+import com.santechture.RCMFacilityCodeMapping
+
+////-----------------------------------------------------
+//RHMC-485
+rule 'QPE145_Add5400_10100012178400000_Surgery_Diplomatic'
+dialect 'mvel'
+salience -2000
+no-loop
+when
+    $c:Claim(patient != null,rolesTypes!=null, rolesTypes=="101000001518")
+    $act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type)
+    $CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+    $p:Patient(subBillingGroup !=null,subBillingGroup =="DP",patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 8:14:53")) from $c.encounter
+then
+    $act.setList($list+5400);
+	String msg = "Set Additional 5400 QAR over the master PL for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//-----------------------------------------------------
+////RHMC-500
+rule 'QPE160_Add5400_10100012178400000_Surgery_Baby'
+dialect 'mvel'
+salience -2000
+no-loop
+when
+    $c:Claim(patient != null,rolesTypes!=null, rolesTypes == "101000001518")
+    $act:Activity(discount==null,list !=null,$list:list,$quantity:quantity,$code:code,$type:type)
+    $CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+    $p:Patient(age!=null,age<= 1,patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+    Encounter(start!=null,start.getTime()>=getTimefromDate("01/03/2014 16:06:18")) from $c.encounter
+then
+    $act.setList($list+5400);
+	String msg = "Set Additional 5400 QAR over the master PL for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------------
+//RHMC-502
+rule 'QPE162_Add5400_10100012178400000_Surgery_Resident'
+dialect 'mvel'
+salience -2000
+no-loop
+when
+    $c:Claim(patient != null,rolesTypes!=null, rolesTypes == "101000001518")
+    $act:Activity(discount==null,list !=null,$list:list,$quantity:quantity,$code:code,$type:type)
+    $CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+    $p:Patient(billingGroup!=null,billingGroup in ("RS","VI"),patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(start!=null,start.getTime()>=getTimefromDate("01/03/2014 16:01:33")) from $c.encounter
+then
+    $act.setList($list+5400);
+	String msg = "Set Additional 5400 QAR over the master PL for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//---------------------------------------------------------------
+//RHMC-503
+rule 'QPE163_Add5400_10100012178400000_Surgery_Servant'
+dialect 'mvel'
+salience -2000
+no-loop
+when
+    $c:Claim(patient != null,rolesTypes!=null, rolesTypes == "101000001518")
+    $act:Activity(discount==null,list !=null,$list:list,$quantity:quantity,$code:code,$type:type)
+    $CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+    $p:Patient(subBillingGroup !=null,subBillingGroup =="S",patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+    Encounter(start!=null,start.getTime()>=getTimefromDate("01/03/2014 16:04:03")) from $c.encounter
+then
+    $act.setList($list+5400);
+	String msg = "Set Additional 5400 QAR over the master PL for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//--------------------------------------------------
+
+//RHMC-486
+rule 'QPE146_Discount100_101000111801090000_Cov_Direct_Charges'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,serviceItemSerialNumber in ("101000120328","101000120077"))
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("23/04/2014 10:28:04")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+    String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------------
+//RHMC-487
+rule 'QPE147_Discount100_All_10100012178400200_Precision_Medicine_OP&DC'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+$c:Claim()
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(IsOP(type)||startType==12/*Emergency or urgent admissions*/,inchargeDoctorSpecialty !=null,inchargeDoctorSpecialty =="101000012021",
+start!=null,start.getTime()>=getTimefromDate("15/11/2023 13:31:59")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+//RHMC-488
+rule 'QPE148_Discount100_10100012178400100_Mesaieed_Covid'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+$c:Claim()
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(location !=null,location in ("AW MS ICU 29","AW MS ICU 30","AW MS Unit 33","AW MS Unit 34","AW MS Unit 35") ,start!=null,start.getTime()>=getTimefromDate("14/02/2021 16:53:29 until 21/02/2022 1:57:49")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+//RHMC-489
+rule 'QPE149_Discount100_10100012178400100_Baby_Bed_WH'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID =="101000024474")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,serviceItemSerialNumber == "101000092914")
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("22/01/2015 12:48:49")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+//RHMC-490
+rule 'QPE150_Discount100_10100012178400100_Normal_Medicine_GCC_in_AlWakra'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID =="101000024448")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type
+,serviceItemSerialNumber not in ("101000119480","101000119534","101000119349","101000119538","101000126321","101000119651","101000120149","101000124011"))
+$CG: CodeGroup(code==$code,type==$type,name in ("PHARMACEUTICAL SUPPLIES"))
+$p:Patient(billingGroup !=null,billingGroup in ("GC","GV"),patientInsurance != null)from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(IsOP(type),start!=null,start.getTime()>=getTimefromDate("04/12/2020 22:14:50")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+////RHMC-491
+rule 'QPE151_Discount100_10100012178400100_New_Born'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+$c:Claim()
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null)
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(startType!= null,startType==14/*New Born NB*/, start!=null,start.getTime()>=getTimefromDate("23/08/2019 14:41:22")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+////------------------------------------------------------------
+//RHMC-492
+rule 'QPE152_Discount100_10100012178400100_Surgey_Handicap_ExQatari_SonOfQatariFather18'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type)
+$CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+$p:Patient(age!=null,age<= 18,subBillingGroup !=null,subBillingGroup =="SQFL",patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 20:12:03")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//-----------------------------------------------------------
+
+//RHMC-493
+rule 'QPE153_Add2700_10006_Surgery'
+dialect 'mvel'
+salience -2000
+no-loop
+when
+$c:Claim(patient != null,rolesTypes!=null, rolesTypes=="101000001518")
+$act:Activity(discount==null,list !=null,$list:list,$quantity:quantity,$code:code,$type:type)
+$CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+$p:Patient(patientInsurance != null) from $c.patient
+ PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("04/01/2024 12:55:49")) from $c.encounter
+then
+$act.setList($list+2700);
+	String msg = "Set Additional 2700 QAR over the master PL for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+update($act);
+end
+
+//------------------------------------------------------------------
+//RHMC-494
+rule 'QPE154_Discount100_10100012178400000_Surgey_Handicap_ExQatari'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type)
+$CG: CodeGroup(code==$code,type==$type,name in ("Major Surgery","Minor Surgery","Moderate Surgery"))
+$p:Patient(subBillingGroup !=null,subBillingGroup in ("H","HT","HP","WQ","SQM","MOQ","T","QSS"),patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/04/2014 11:11:41")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//----------------------------------------------------------
+//RHMC-495
+rule 'QPE155_Discount100_10100012180090000_General_discount'
+dialect 'mvel'
+salience -1000
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type,serviceItemSerialNumber  != "101000118145")
+$CG: CodeGroup(code==$code,type==$type,name not in ("SCLAB","EXTLAB","79","80","88","89","NONF","90","91","99","SG0009"))
+$p:Patient(patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 19:46:31")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//----------------------------------------------------
+//RHMC-496
+rule 'QPE156_Discount100_10100012180100000_General_discount'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type,serviceItemSerialNumber not in ("101000118145","101000126314","101000128560","101000128567"))
+$CG: CodeGroup(code==$code,type==$type,name not in ("Lab Supplies","External Lab","79","CSSD ORTHOPEDIC SUPPLIES","PROSTHETIC AND ORTHOPEDIC SUPPLIES","PHARMACEUTICAL SUPPLIES","Non-formulary","SURGICAL SUPPLIES","MEDICAL SUPPLIES","DENTAL SUPPLIES","Dental"))
+$p:Patient(patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity!=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 19:46:31")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------------------------
+//RHMC-497
+rule 'QPE157_Discount100_10100012178400100_Frieght_Handicap_and_ExQatari_SonOfQatariFather18'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,serviceItemSerialNumber == "101000118145")
+$p:Patient(age!=null,age<= 18,subBillingGroup !=null,subBillingGroup =="SQFL",patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/03/2014 10:09:44")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//-----------------------------------------
+//RHMC-498
+rule 'QPE158_Discount100_10100012178400000_General_Discount_GCC_Visitor'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,$type:type,serviceItemSerialNumber not in ("101000126314","101000099540","101000118145","101000000021","101000123434","101000123435","101000120339","101000124074","101000123903"))
+$CG: CodeGroup(code==$code,type==$type,name not in ("EXTLAB","99","CRO","IVF","TB","VACC","9010","79","80","88","89","NONF","90","91","9910","9110","SCLAB","IVFLAB","SC0143","NUT","NODISCMED"))
+$p:Patient(billingGroup!=null,billingGroup=="GV",patientInsurance != null)from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(startType!=14/*New Born NB*/,start!=null,start.getTime()>=getTimefromDate("10/03/2014 17:42:09")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//-------------------------------------------------------------------
+//RHMC-499
+rule 'QPE159_Discount100_10100012178400000_Frieght_Handicap_ExQatari'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,serviceItemSerialNumber == "101000118145")
+$p:Patient(subBillingGroup !=null,subBillingGroup in ("WQ","SQM","MOQ","T","P","QSS"),patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/03/2014 10:09:44")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------------------
+//RHMC-501
+rule 'QPE161_Discount100_10100012178400000_Freight_Charge_Qatari'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,$code:code,serviceItemSerialNumber == "101000118145")
+$p:Patient(billingGroup!=null,billingGroup =="QATARI",patientInsurance != null) from $c.patient
+PatientInsurance(cardType!=null,cardType==1/*HealthCard*/,healthcardValidity !=null,healthcardValidity=="Y") from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 08:34:07")) from $c.encounter
+then
+  $act.setDiscountPercentage(100.0);
+  $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------

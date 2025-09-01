@@ -1,0 +1,1877 @@
+package com.santechture.price.qatart;
+
+import java.util.ArrayList
+import java.util.Set
+import java.util.Date
+import com.santechture.request.ClaimType
+import com.santechture.request.Workflow
+import com.santechture.Facility
+import com.santechture.request.ObservationOutcome
+import com.santechture.SPCCodeFactor
+import com.santechture.request.Activity
+import com.santechture.ObseleteEncounter
+import com.santechture.request.Diagnosis
+import com.santechture.request.ClaimOutcome
+import com.santechture.dao.DAO
+import com.santechture.request.ActivityOutcome
+import com.santechture.request.WorkflowOutcome
+import com.santechture.request.Contract
+import com.santechture.CusPriceList
+import com.santechture.CusIP_ARDRGPriceListItem
+import com.santechture.CusRadiology_ACHIPriceListItem
+import com.santechture.CusOP_QOCSPriceListItem
+import com.santechture.CusEmergencyURGPriceListItem
+import com.santechture.CusDentistryASDSGPriceListItem
+import com.santechture.CusIP_SUBPriceListItem
+import com.santechture.MedicinesPriceListItem
+import com.santechture.request.DiagnosisOutcome
+import com.santechture.request.AppliedDeductible
+import com.santechture.SPCGroupFactor
+import com.santechture.request.EncounterOutcome
+import com.santechture.GroupCodesRange
+import com.santechture.CusContract
+import com.santechture.SPCContract
+import com.santechture.request.AppliedCopayment
+import com.santechture.ObseleteClaim
+import com.santechture.request.Request
+import com.santechture.request.Authorisation
+import com.santechture.request.PatientInsurance
+import com.santechture.request.ExtendedValidationType
+import com.santechture.Severity
+import com.santechture.request.Encounter
+import com.santechture.ObseleteActivity
+import com.santechture.request.PatientOutcome
+import com.santechture.ControlFact
+import com.santechture.request.Observation
+import com.santechture.DrugPrice
+import com.santechture.request.ContractOutcome
+import com.santechture.request.CodeType
+import com.santechture.request.ActivityGroup
+import com.santechture.CusPriceListItem
+import com.santechture.ObseleteClaimInfo
+import com.santechture.request.AuthorisationOutcome
+import com.santechture.request.Header
+import com.santechture.MasterPriceListItem
+import com.santechture.MasterPriceList
+import com.santechture.request.RequestOutcome
+import com.santechture.request.PatientInsuranceOutcome
+import com.santechture.Clinician
+import com.santechture.request.ResubmissionOutcome
+import com.santechture.request.Patient
+import com.santechture.request.Resubmission
+import com.santechture.request.Claim
+import com.santechture.Regulator
+import com.santechture.ObseleteDiagnosis
+import com.santechture.request.HeaderOutcome
+import com.santechture.CodeGroup
+import com.santechture.FacilityType
+import com.santechture.request.ExtendedValidationTypeOutcome
+import com.santechture.request.CoPayment
+import com.santechture.request.CoInsurance
+import com.santechture.request.Deductible
+import com.santechture.DHA_DRG
+import com.santechture.DHA_DRG_HighCost
+import com.santechture.DRGExcludedCpts
+import com.santechture.DHA_DRG_COST_PER_ACTIVITY
+import com.santechture.PackageCode
+import com.santechture.CustomCode
+import com.santechture.PackageItemCode
+import com.santechture.RCMFacilityCodeMapping
+
+//function void logInfo(String ruleName, String info) {
+//	System.out.println(ruleName + info);}
+
+function  boolean debugMode() {
+return true;
+}
+
+function void printLogInfo(String ruleName, String info,Boolean logi) {
+//if(logi){
+//	System.out.println(ruleName + info);
+//	}
+}
+//-------------------------------------------------
+function double roundDouble(java.lang.Double d) {
+double value =  Math.round(d*100);
+return value/100;
+}
+//--------------------------------------------
+function  boolean IsOP(java.lang.Integer type) {
+return type==102;
+}
+//---------------------------------------------
+function  boolean IsIP(java.lang.Integer type) {
+return type==101;
+}
+//---------------------------------------------
+function  boolean IsEM(java.lang.Integer type) {
+return type==103;
+}
+function  boolean hasDoubleValue(java.lang.Double d) {
+return d != null && d>0 && !d.isNaN();
+}
+
+function java.util.Date toDate(String sDate) {
+java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("dd/MM/yyyy");
+return fmt.parse(sDate);
+
+//DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+//LocalDate date = LocalDate.parse(sDate, formatter);
+//return date;
+}
+//-----------------------------------------------------
+function Double roundQuad(Object d) {
+    if (d == null) {
+        return null;
+    }
+    Double value;
+    if (d instanceof String) {
+        try {
+            value = Double.parseDouble((String) d);
+        } catch (NumberFormatException e) {
+            return null; // Return null if parsing fails
+        }
+    } else if (d instanceof Double) {
+        value = (Double) d;
+    } else {
+        return null; // Return null for unsupported types
+    }
+    return (Math.round(value * 10000) / 10000.0);
+}
+//-----------------------
+//function java.util.Date  truncateDate(java.util.Date dateObject) {
+//java.util.Date ret = (java.util.Date)dateObject.clone();
+//ret.setHours(0);
+//ret.setMinutes(0);
+//ret.setSeconds(0);
+//return ret;
+//}
+
+function long getTimefromDate(String sDate) {
+java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("dd/MM/yyyy hh:mm:ss");
+java.util.Date dd=fmt.parse(sDate);
+return dd.getTime();
+}
+//-----------------------------------
+function double processWithCeiling(double ceiling, double claimTotal, double value)
+{
+   // Calculate the future deductible total by adding the current claimTotal and the new value
+    double futureDeductibleTotal = claimTotal + value;
+
+    double appliedDeductible = 0.0d;
+
+    // Check if the future deductible total exceeds the ceiling
+    if (futureDeductibleTotal > ceiling) {
+        // If it exceeds, calculate the applied deductible as the difference between the ceiling and claimTotal
+        appliedDeductible = ceiling - claimTotal;
+
+        // Ensure the applied deductible is non-negative (absolute value)
+        appliedDeductible = appliedDeductible < 0 ? -1 * appliedDeductible : appliedDeductible;
+    } else {
+        // If it does not exceed the ceiling, the applied deductible is simply the input value
+        appliedDeductible = value;
+    }
+
+    // Round the applied deductible and return it
+    return  roundDouble(appliedDeductible);
+}
+//-------------------------------------------------
+//function boolean notManualCustomPrice(String custom_Price_Types) {
+//    if (custom_Price_Types == null || custom_Price_Types.length() == 0) {
+//        return true;
+//    }
+//    // Check if the input does not contain "3" or "5"
+//
+//    boolean doesNotContainSpecialValues = (custom_Price_Types.indexOf("3") == -1 && custom_Price_Types.indexOf("5") == -1);
+//
+//    // Return the result of the check
+//    return doesNotContainSpecialValues;
+//
+//// cache_activity            ("1", "Cash Activity")
+//// apply_rejected_amount     ("2", "apply rejected amount")
+////  apply_special_list_price ("3", "Apply Special List Price"),
+////  apply_special_discount   ("4", "Apply Special Discount"),
+////  manual_price             ("5", "Manual price"),
+//// self_pay_price            ("6", "Self pay Price"),
+//}
+//------------------------------------------------------------------------
+//rule 'SPC_WITH_PACKAGE_PI'
+//dialect 'mvel'
+//salience -10
+//when
+//
+//  $c: Claim($providerID:providerID, $receiverID:receiverID, SPC_ID == null, CUS_ID == null)
+//    $p:Patient(patientInsurance != null) from $c.patient
+//    PatientInsurance($packageName: packageName, packageName != null) from $p.patientInsurance
+//    Encounter($start: start) from $c.encounter
+//    $spcContract: SPCContract(
+//        insurerLicense == $receiverID,
+//        facilityLicense == $providerID,
+//        packageName != null,
+//        packageName.toLowerCase() == $packageName.toLowerCase(),
+//        (startDate == null || $start >= startDate),
+//        (endDate == null || $start <= endDate))
+//then
+//    String msg =" Apply SPC contract ID=" + $spcContract.getID() + " Encounter start=" + $start;
+//    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+//    $c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+//    $c.setSPC_ID($spcContract.getID());
+//    update($c);
+//end
+//------------------------------------------------------------------------
+rule 'CUS_Price_WITH_PACKAGE_PI'
+dialect 'mvel'
+salience -29
+when
+    $c: Claim($providerID:providerID, $receiverID:receiverID, SPC_ID == null, CUS_ID == null)
+    $p:Patient(patientInsurance != null) from $c.patient
+    PatientInsurance($packageName: packageName, packageName != null) from $p.patientInsurance
+
+    Encounter($start: start) from $c.encounter
+    $cusContract: CusContract(insurerLicense == $receiverID,
+                              facilityLicense == $providerID,
+                              packageName != null,
+                              packageName.toLowerCase() == $packageName.toLowerCase(),
+                              startDate == null || $start >= startDate,
+                              endDate == null || $start <= endDate)
+then
+    String msg="Apply PI Package Custom contract ID=" + $cusContract.getID() + " Encounter start=" + $start+" for insurer :"+$receiverID+" and facility :"+$providerID;
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    $c.setCUS_ID($cusContract.getID());
+    update($c);
+end
+////------------------------------------------------------------------------
+//rule 'CUS_Price_WITH_Cont_PACKAGE'
+//dialect 'mvel'
+//salience -30
+//when
+//    $c: Claim($providerID:providerID, $receiverID:receiverID, SPC_ID == null, CUS_ID == null)
+//    $p:Patient(patientInsurance != null) from $c.patient
+//    PatientInsurance(packageName==null) from $p.patientInsurance
+//
+//    Contract($packageName: packageName, packageName != null ) from $c.contract
+//
+//    Encounter($start: start) from $c.encounter
+//    $cusContract: CusContract(insurerLicense == $receiverID,
+//                              facilityLicense == $providerID,
+//                              packageName != null,
+//                              packageName.toLowerCase() == $packageName.toLowerCase(),
+////                              isDental() == false,
+//                              startDate == null || $start >= startDate,
+//                              endDate == null || $start <= endDate)
+//then
+//    String msg="Apply Contract Package Custom contract ID=" + $cusContract.getID() + " Encounter start=" + $start+" for insurer :"+$receiverID+" and facility :"+$providerID;
+//    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+//    $c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+//    $c.setCUS_ID($cusContract.getID());
+//    update($c);
+//end
+//------------------------------------------------------------------------
+//rule 'SPC_NO_PACKAGE'
+//dialect 'mvel'
+//salience -20
+//when
+//    $c:Claim($providerID:providerID, $receiverID:receiverID, SPC_ID == null, CUS_ID == null)
+//     Encounter($start: start,start !=null) from $c.encounter
+//     $p:Patient(patientInsurance != null) from $c.patient
+//     PatientInsurance($packageName: packageName) from $p.patientInsurance
+//
+//    not(SPCContract(insurerLicense == $receiverID,
+//                    facilityLicense == $providerID,
+//                    packageName == $packageName,
+//                    startDate == null || $start >= startDate,
+//                    endDate == null || $start <= endDate))
+//
+//    $spcContract: SPCContract(insurerLicense == $receiverID,
+//                              facilityLicense == $providerID,
+//                              packageName == null,
+//                              startDate == null || $start >= startDate,
+//                              endDate == null || $start <= endDate)
+//then
+//    String msg =" Apply No package SPC contract ID=" + $spcContract.getID() + " Encounter start=" + $start;
+//
+//    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+//    $c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+//
+//
+//    // Clear the CUS_ID if needed (currently not used).
+//    //$c.setCUS_ID(null);
+//    $c.setSPC_ID($spcContract.getID());
+//    update($c);
+//end
+//------------------------------------------------------------------------
+rule 'CUS_Price_NO_PACKAGE'
+dialect 'mvel'
+salience -40
+when
+    $c: Claim($providerID: providerID, $receiverID: receiverID, SPC_ID == null, CUS_ID == null)
+
+    Encounter($start: start,start !=null) from $c.encounter
+    $p:Patient(patientInsurance != null) from $c.patient
+    PatientInsurance($packageName: packageName) from $p.patientInsurance
+    // Ensure that there is no existing `CusContract` matching specific conditions
+    not(CusContract(insurerLicense == $receiverID,
+                    facilityLicense == $providerID,
+                   $packageName!=null, packageName == $packageName,
+//                    isDental() == false,
+                    startDate == null || $start >= startDate,
+                    endDate == null || $start <= endDate))
+    $cusContract: CusContract(insurerLicense == $receiverID,
+                              facilityLicense == $providerID,
+                              packageName == null,
+//                              isDental() == false,
+                              startDate == null || $start >= startDate,
+                              endDate == null || $start <= endDate)
+
+then
+    String msg="Apply No package Custom contract ID=" + $cusContract.getID() + " Encounter start=" + $start;
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    $c.setCUS_ID($cusContract.getID());
+    update($c);
+end
+//-------------------------------------------------
+rule 'CUS_LIST_PRICE_Dentistry_ASDSG'
+dialect 'mvel'
+salience -100
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	/* IsIP(type) I*/
+	Encounter($encStart:start,start !=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.DENTAL_ASDSG,clinicianSpecialty!=null,$cSpecialty:clinicianSpecialty.toLowerCase())
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:dentistryAsdsgPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,priceListType!=null ,priceListType=="Dentistry_ASDSG",$MyID==id)
+
+	CusDentistryASDSGPriceListItem(pricListId==$cuspriceListId, code==$code,
+	generalDentistPrice !=null,$generalPrice:generalDentistPrice,
+	specializedDentistPrice !=null,$specializedPrice:specializedDentistPrice)
+
+then
+
+double price=0.0d;
+String sRuleName = drools.getRule().getName();
+
+    if ($cSpecialty=="specialist"||$cSpecialty=="consultant"){
+        price=$specializedPrice;
+    }
+    else {
+        price=$generalPrice;
+    }
+
+	double listPrice = roundDouble(price);
+
+	String msg=" Set Dentistry_ASDSG list price, price = "+listPrice +" for Dental Speciality : "+$cSpecialty;
+
+	if( price < 0.0d || listPrice <0)
+        {
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//--------------------------------------------------
+rule 'CUS_LIST_PRICE_Radiology_ACHI'
+dialect 'mvel'
+salience -100
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	/* IsIP(type) I*/
+	Encounter($encStart:start,start !=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.RADIOLOGY_ACHI)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:radiologyAchiPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="Radiology_ACHI",$MyID==id)
+
+	CusRadiology_ACHIPriceListItem(pricListId==$cuspriceListId, code==$code, price !=null,$price:price)
+then
+	double listPrice = roundDouble($price);
+	String sRuleName = drools.getRule().getName();
+	String msg=" Set RADIOLOGY_ACHI list price, price = "+listPrice +" for type "+$priceListType;
+
+	if( $price < 0.0d || listPrice <0)
+        {
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//--------------------------------------------------
+rule 'CUS_LIST_PRICE_Emergency_URG'
+dialect 'mvel'
+salience -100
+when
+	$c:Claim($CUS_ID: CUS_ID)
+/*type == 103,*/ /*E*/
+	Encounter($encStart:start,start !=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.ER_URG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$MyID:emergencyUrgPriceListId)
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,priceListType!=null ,priceListType=="ER_URG",$MyID==id)
+	CusEmergencyURGPriceListItem(pricListId==$cuspriceListId, code==$code, price !=null,$price:price)
+then
+	double listPrice = roundDouble($price);
+	String sRuleName = drools.getRule().getName();
+	String msg=" Set Emergency URG list price, price = "+listPrice +" for type ER_URG .";
+	if( $price < 0.0d || listPrice <0)
+        {
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//-----------------------------------------
+rule 'CUS_LIST_PRICE_IP_AR_DRG'
+dialect 'mvel'
+salience -101
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,lengthOfStay != null,$Stay:lengthOfStay/*,careType==null*/) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR_DRG",$ArDrgID==id)
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code,
+	shortStayLessThan !=null,$shortStayLessThan:shortStayLessThan,
+	shortStayPrice !=null,$shortStayPrice:shortStayPrice,
+	longStayMoreThan !=null,$longStayMoreThan:longStayMoreThan,
+	longStayPrice !=null,$longStayPrice:longStayPrice,
+	thresholdStay !=null,$thresholdStay:thresholdStay,
+	longStayThresholdPrice !=null,$longStayThresholdPrice:longStayThresholdPrice,
+	normalStayPrice !=null,$normalStayPrice:normalStayPrice,
+	sameDayPrice !=null,$sameDayPrice:sameDayPrice)
+
+then
+double price=$normalStayPrice;
+String sRuleName = drools.getRule().getName();
+	String stymsg="";
+if ($Stay>0.0d && $Stay <= 1.0d){
+    price=$sameDayPrice;
+    stymsg=" Same Day Price ";
+}
+else if ($Stay<$shortStayLessThan){
+    price=$shortStayPrice;
+    stymsg=" Short Stay Price ";
+}
+else if ($Stay>$shortStayLessThan && $Stay<$longStayMoreThan){
+    price =$normalStayPrice;
+    stymsg=" Normal Stay Price ";}
+else if($Stay>$longStayMoreThan && $Stay <$thresholdStay){
+     price=$longStayPrice;
+     stymsg=" Long Stay Price ";}
+ else if ($Stay >$thresholdStay){
+    price=$longStayThresholdPrice;
+    stymsg=" long Stay Threshold Price ";
+    }
+
+double listPrice = roundDouble(price);
+	if( price < 0.0d || listPrice <0)
+        {
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+
+	String msg=" Set IP_AR_DRG list price,Based on ["+$Stay+"] days Stay, get price from"+stymsg+" price=["+listPrice +" ]. ";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//--------------------------------------------------------
+rule 'CUS_LIST_PRICE_IP_Subacute'
+dialect 'mvel'
+salience -99
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,
+	lengthOfStay != null,$Stay:lengthOfStay,
+    careType!=null ,careType!="0" ,$careType:careType
+	) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$CID:inpatientSubacutePriceListId)
+
+	CusPriceList($cuspriceListId:id,$CID == id ,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="IP_SUB")
+
+CusIP_SUBPriceListItem(pricListId==$cuspriceListId, code==$careType,$price:price,price!=null)
+
+then
+    double price=$price;
+    String sRuleName = drools.getRule().getName();
+	String visitmsg="";
+    if ($Stay>0){
+        price=$Stay * price;
+    }
+    double listPrice = roundDouble(price);
+	if( price < 0.0d || listPrice <0){
+        $act.setList(null);
+    }
+    else
+		$act.setList(listPrice);
+	String msg=" Set IP_Subacute list price, Based on ["+$Stay+"] days Stay, get price as"+$price+"*"+$Stay+" =["+listPrice +" ].";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//--------------------------------------------------------
+rule 'CUS_LIST_PRICE_IP_AR_DRG_NormalStay'
+dialect 'mvel'
+salience -101
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,lengthOfStay != null,$Stay:lengthOfStay/*,careType==null*/) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR_DRG",$ArDrgID==id)
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code,
+	shortStayLessThan ==null,
+	shortStayPrice ==0,
+	longStayMoreThan ==null,
+	longStayPrice==0,
+	thresholdStay ==null,
+	longStayThresholdPrice ==0,
+//	sameDayPrice ==0,
+	normalStayPrice !=null,$normalStayPrice:normalStayPrice
+	)
+then
+double price=$normalStayPrice;
+String sRuleName = drools.getRule().getName();
+
+double listPrice = roundDouble(price);
+	if( price < 0.0d || listPrice <0)
+        {
+//            $act.setList(Double.NaN);
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+
+	String msg=" Set IP_AR_DRG list price, get price=["+listPrice +" ]. ";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//--------------------------------------------------------
+rule 'CUS_LIST_PRICE_IP_AR_DRG_NoShortStay'
+dialect 'mvel'
+salience -101
+when
+	$c:Claim($CUS_ID: CUS_ID)
+	// IsIP(type),
+	Encounter($encStart:start,start !=null,lengthOfStay != null,$Stay:lengthOfStay/*,careType==null*/) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.IP_AR_DRG)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$ArDrgID:inpatientArDrgPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="AR_DRG",$ArDrgID==id)
+
+
+	CusIP_ARDRGPriceListItem(pricListId==$cuspriceListId, code==$code,
+	shortStayLessThan ==null,
+//	shortStayPrice ==null,
+	longStayMoreThan !=null,$longStayMoreThan:longStayMoreThan,
+	longStayPrice !=null,$longStayPrice:longStayPrice,
+	thresholdStay !=null,$thresholdStay:thresholdStay,
+	longStayThresholdPrice !=null,$longStayThresholdPrice:longStayThresholdPrice,
+	normalStayPrice !=null,$normalStayPrice:normalStayPrice,
+	sameDayPrice !=null,$sameDayPrice:sameDayPrice)
+
+then
+double price=$normalStayPrice;
+String sRuleName = drools.getRule().getName();
+	String staymsg="";
+if ($Stay>0.0d && $Stay <= 1.0d){
+    price=$sameDayPrice;
+    staymsg=" Same Day Price ";
+}
+else if ( $Stay<$longStayMoreThan){
+    price =$normalStayPrice;
+    staymsg=" Normal Stay Price ";}
+else if($Stay>$longStayMoreThan && $Stay <$thresholdStay){
+     price=$longStayPrice;
+     staymsg=" Long Stay Price ";}
+ else if ($Stay >$thresholdStay){
+    price=$longStayThresholdPrice;
+    staymsg=" long Stay Threshold Price ";
+    }
+
+double listPrice = roundDouble(price);
+	if( price < 0.0d || listPrice <0)
+        {
+//            $act.setList(Double.NaN);
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+
+	String msg=" Set IP_AR_DRG list price,Based on ["+$Stay+"] days Stay, get price from"+staymsg+" price=["+listPrice +" ]. ";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+//--------------------------------------------------------
+rule 'CUS_LIST_PRICE_OP_QOCS'
+dialect 'mvel'
+salience -101
+when
+	$c:Claim($CUS_ID: CUS_ID,$visitType:visitType,visitType!=null)
+//	IsOP(type),
+	Encounter( $encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.OP_QOCS)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$OPQOCSID:outpatientQocsPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="OP_QOCS",$OPQOCSID==id)
+
+
+CusOP_QOCSPriceListItem( pricListId==$cuspriceListId, code==$code,
+price !=null,$price:price,
+followUpPrice !=null,$followUpPrice:followUpPrice)
+then
+double price=$price;
+String sRuleName = drools.getRule().getName();
+	String visitmsg="";
+
+    if ($visitType.equals("1") /*New visit*/){
+        price=$price;
+        visitmsg=" New Visit Price ";
+    }
+    else if ($visitType.equals("2") /*Follow up*/){
+        price=$followUpPrice ;
+        visitmsg=" Follow up Price ";
+    }
+    else if ($visitType.equals("3")/*repeat-visit*/){
+        price =roundDouble($price)*0.50;
+        staymsg=" Repeat Visit Price ";
+    }
+
+double listPrice = roundDouble(price);
+	if( price < 0.0d || listPrice <0)
+        {
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+	String msg=" Set OP_QOCS list price,Based on visit type:["+$visitType+"] get price from"+visitmsg+" price=["+listPrice +" ].";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+
+//--------------------------------------------------
+//RHMC-1347
+rule 'CUS_LIST_PRICE_OP_QOCS_Single_Price'
+dialect 'mvel'
+salience -101
+when
+	$c:Claim($CUS_ID: CUS_ID,$visitType:visitType,visitType!=null)
+//	IsOP(type),
+	Encounter( $encStart:start,start!=null) from $c.encounter
+    $act:Activity($code:code,list==null,type==CodeType.OP_QOCS)
+    CusContract(ID == $CUS_ID, $priceListId: priceListId,$OPQOCSID:outpatientQocsPriceListId)
+
+	CusPriceList($cuspriceListId:id,startDate == null ||(startDate != null && $encStart>= startDate),
+        endDate == null || (endDate != null && $encStart<= endDate)
+        ,$priceListType:priceListType,priceListType!=null ,priceListType=="OP_QOCS",$OPQOCSID==id)
+
+
+CusOP_QOCSPriceListItem( pricListId==$cuspriceListId, code==$code,
+price !=null,$price:price,
+followUpPrice ==null)
+then
+double price=$price;
+String sRuleName = drools.getRule().getName();
+double listPrice = roundDouble(price);
+	if( price < 0.0d || listPrice <0)
+        {
+            $act.setList(null);
+        }
+    else
+		$act.setList(listPrice);
+	String msg=" Set OP_QOCS list price,Based on Single price for all visit type price ["+listPrice +" ].";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, sRuleName,msg, "");
+	update($act);
+end
+
+//--------------------------------------------------
+rule 'DRUG_LIST_PRICE'
+dialect 'mvel'
+salience -101
+when
+    $c:Claim()
+    Encounter($encStart:start,start!=null) from $c.encounter
+    $act:Activity(type == CodeType.Medicine , $code:code, $drugType:drugType, list == null)
+
+    MedicinesPriceListItem(
+              tradeCode == $code,
+              effectiveDate == null || $encStart >= effectiveDate,
+              expiryDate == null || $encStart <= expiryDate,
+              $package_Price_to_Public:packagePriceToPublic,
+              $unit_Price_to_Public:unitPrice)
+
+//                                private Long granularUnit;
+              /*
+                  private String tradeName;
+                  private String ingredientStrength;
+                  private String dosageForm;
+                  private String manufacturer;
+                  private String registeredOwner;
+
+                  private String source;
+                  private String scientificCode;
+                  private String scientificName;
+                  private String routeOfAdmin;
+                  private String status;
+              */
+
+              //               private String tradeCode;
+              //                  private Date expiryDate;
+              //                  private Date effectiveDate;
+              //                  private Double packagePriceToPublic;
+              //                  private Double unitPrice;
+then
+
+    Boolean unitPrice = false;
+    Double price = null;
+    String ChosenUnitPrice="None";
+
+    // If drug type is null or specific values (0 or 1), the unit price is false, otherwise true.
+//    unitPrice = $drugType==null || ($drugType!=0 && $drugType!=1);
+
+    if ($drugType!=null && ($drugType == 0 || $drugType == 1)) {
+        unitPrice = false;
+        ChosenUnitPrice="Package";
+    } else  {
+        unitPrice = true;
+        ChosenUnitPrice="Unit";
+       // unitPrice = ($drugType.intValue() == 0 || $drugType.intValue() == 1) ? false : true;
+    }
+
+    // Assign price based on unit price or package price.
+    price = unitPrice ? roundQuad($unit_Price_to_Public) : roundQuad($package_Price_to_Public);
+
+    // Ensure the price is valid; if invalid, set it to NaN.
+    price = price == null || price < 0 ? Double.NaN : roundQuad(price);
+
+    // Set the activity's list price based on the determined price.
+    $act.setList(roundQuad(price));
+
+
+    String msg= "Set list price, for drug as [" + ChosenUnitPrice + "] price [" + price +"] to Activity  code=" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+
+    update($act);
+
+end
+
+//--------------------------------------------------
+
+
+rule 'CUS_LIST_PRICE'
+dialect 'mvel'
+salience -103
+when
+    $c: Claim($CUS_ID: CUS_ID, CUS_ID != null)
+    Encounter($encStart: start) from $c.encounter
+    CusContract(ID== $CUS_ID, $priceListId: priceListId)
+    $act: Activity($code: code, $type: type, list == null, $quantity: quantity)
+
+    CusPriceListItem(pricListId == $priceListId, code == $code, type == $type,
+                     startDate == null || (startDate != null && $encStart>= startDate),
+                     endDate == null || (endDate != null && $encStart<= endDate),
+                     price !=null,$price: price, $discount: discount)
+then
+   // Set the price list on the Activity object, ensuring a valid price
+    $act.setList($price == null || $price < 0 ? Double.NaN : roundQuad($price));
+    $act.setListPricePredifined(1);//؟؟؟؟
+
+    // If a discount exists and is positive, apply the discount
+    if($discount != null && $discount > 0) {
+        $act.setDiscountPercentage($discount);
+        // If the list price is valid (not NaN), calculate the discount amount
+        if ($act.getList() != null && !$act.getList().isNaN()) {
+            $act.setDiscount($act.getDiscountPercentage().isNaN() ? 0 :
+                roundDouble(((($act.getList() / 100) * $act.getDiscountPercentage()) *
+                    ($quantity == null || $quantity.isNaN() || $quantity < 0 ? 1 : $quantity))));
+        }
+    }
+    String msg= " Set list price, price list id=" + $priceListId + " price=" + $price +" discount=" +$act.getDiscountPercentage()+" to Activity ID=" + $act.getIdCaller() + " code=" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//----------------------------------------------------------------------------
+rule 'ALERT_NO_LIST_PRICE'
+dialect 'mvel'
+salience -110
+no-loop
+when
+	$c:Claim(gross== null)
+	$act: Activity(gross == null,
+		            list == null || list.isNaN(), $outcome:outcome)
+	not(ActivityOutcome(ruleName=="ALERT_NO_LIST_PRICE") from $act.outcome)
+then
+printLogInfo(drools.getRule().getName(),
+             		" List price not found to Activity ID=" + $act.getIdCaller()  +" code=" + $act.getCode(),$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),
+		"List price not found.", "");
+end
+//--------------------------------------------------------
+
+rule 'CUS_DISCOUNT_OP'
+dialect "mvel"
+salience -200
+when
+    $c: Claim($CUS_ID: CUS_ID, CUS_ID != null)
+    Encounter($encType: type,type !=null,IsOP(type)) from $c.encounter
+    CusContract(ID == $CUS_ID, $OP_DISCOUNT: OP_DISCOUNT)
+
+    $act: Activity(
+//        type != CodeType.TRADE_DRUG,
+//        type != CodeType.HCPCS,
+//        type != CodeType.DENTAL,
+        $code: code,
+        list != null, !list.isNaN(),$list: list,
+        discount == null,
+        $quantity: quantity
+    )
+then
+   if($OP_DISCOUNT==null || $OP_DISCOUNT.isNaN() || $OP_DISCOUNT<0)
+        {
+           $OP_DISCOUNT=0.0d;
+        }
+
+    $act.setDiscountPercentage($OP_DISCOUNT);
+   if($quantity==null || $quantity.isNaN() || $quantity<0)
+        {
+           $quantity=1.0d;
+        }
+    Double discountAmount = roundDouble(
+        (($list / 100) * $act.getDiscountPercentage()) * $quantity);
+    $act.setDiscount(discountAmount.isNaN() ? 0 : discountAmount);
+    String msg = "Apply discount=[" + $OP_DISCOUNT +"%] as :["+discountAmount+"] to Activity ID=" + $act.getIdCaller() +" code=" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------------
+rule 'CUS_DISCOUNT_IP'
+dialect "mvel"
+salience -200
+when
+    $c: Claim($CUS_ID: CUS_ID, CUS_ID != null)
+    Encounter($encType: type,type !=null,IsIP(type)) from $c.encounter
+    CusContract(ID == $CUS_ID, $IP_DISCOUNT: IP_DISCOUNT)
+    $act: Activity(
+//        type != CodeType.TRADE_DRUG,
+//        type != CodeType.HCPCS,
+        $code: code,
+        list != null,!list.isNaN(), $list: list,
+        discount == null,$quantity: quantity)
+then
+   if($IP_DISCOUNT==null || $IP_DISCOUNT.isNaN() || $IP_DISCOUNT<0)
+        {
+           $IP_DISCOUNT=0.0d;
+        }
+    $act.setDiscountPercentage($IP_DISCOUNT);
+   if($quantity==null || $quantity.isNaN() || $quantity<0)
+        {
+           $quantity=1.0d;
+        }
+    Double discountAmount = roundDouble((($list / 100) * $act.getDiscountPercentage()) *$quantity);
+    $act.setDiscount(discountAmount.isNaN() ? 0 : discountAmount);
+    String msg = "Apply discount=[" + $IP_DISCOUNT +"%] as :["+discountAmount+"] to Activity ID=" + $act.getIdCaller() +" code=" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//----------------------------------------------------------------------
+rule 'CALC_GROSS'
+dialect 'mvel'
+salience -5001
+when
+	$c:Claim(gross== null)
+	$act: Activity(gross == null,
+	                list != null, !list.isNaN(),$list:list,
+	                $discount:discount, $quantity:quantity ,$hikeAmount:hikeAmount)
+then
+   if($quantity==null || $quantity.isNaN() || $quantity<0)
+        {
+           $quantity=1.0d;
+        }
+   if($discount== null || $discount.isNaN())
+       {
+           $discount=0.0d;
+       }
+   if($hikeAmount== null || $hikeAmount.isNaN())
+       {
+           $hikeAmount=0.0d;
+       }
+	$act.setGross(roundDouble((($list*$quantity)-$discount)+$hikeAmount));
+    String msg=" based on list price [" + $list + "] and discount ["+$discount+"] for Activity code [" + $act.getCode()+"] Gross=" + $act.getGross()+"net "+$act.getNet();
+
+   printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+   $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+	update($act);
+end
+////-------------------------------------------------------------
+//rule 'FORCE_NO_Copayment'
+//dialect 'mvel'
+//salience -5010
+//when
+//	$c:Claim()
+//	$act: Activity(copayment== null)
+//then
+//	String sRuleName = drools.getRule().getName();
+//	String sMsg = "Set copay to 0 to Activity code="+$act.getCode()
+//	+"net "+$act.getNet() +" pt"+$act.getPatientShare()+"gross:"+$act.getGross()
+//	//to delete
+//	;
+//    printLogInfo(sRuleName,sMsg,$c.getLogInfo());
+//	$act.setCopayment(0.0d);
+//	$act.addOutcome(Severity.INFO, sRuleName ,sMsg, "");
+//	update($act);
+//end
+////-------------------------------------------------------------
+//rule 'FORCE_NO_Deductible'
+//dialect 'mvel'
+//salience -5010
+//when
+//	$c:Claim()
+//	$act: Activity(deductible == null)
+//then
+//	String sRuleName = drools.getRule().getName();
+//	String sMsg = "Set deductible to 0 to Activity code="+$act.getCode()
+//	+"net "+$act.getNet() +" pt"+$act.getPatientShare()+"gross:"+$act.getGross()
+//    printLogInfo(sRuleName,sMsg,$c.getLogInfo());
+//	$act.setDeductible(0.0d);
+//	$act.addOutcome(Severity.INFO, sRuleName ,sMsg, "");
+//	update($act);
+//end
+//------------------------------------------------------------------
+rule 'COPAY_Claim_type'
+dialect "mvel"
+salience -5004
+
+when
+    $c: Claim()
+    ClaimType($claimtype:type ) from $c.claimType
+    $act: Activity(
+        gross != null,gross > 0,!gross.isNaN(),$gross: gross,
+        copayment == null)
+    // - Capture ceiling and claimTotal for future calculations
+    $coPayment: CoPayment($type:type,
+       ( ( type == "Dental" && $claimtype == ClaimType.Dental)
+       ||( type == "Optical" && $claimtype == ClaimType.Optical)
+       ||( type == "Maternity" && $claimtype == ClaimType.Maternity)
+
+       ),
+        value > 0, $value:value,
+        $ceiling: ceiling,
+        $claimTotal: claimTotal
+    )
+then
+    String sRuleName = drools.getRule().getName();
+    double applied_Copay = 0.0d;
+    String msg="";
+        //old get value
+        //double value = $coPayment.getValue($act.getGross(), $act.getDeductible());
+        //Math.round((gross - (deductible != null && !deductible.isNaN() ? deductible : 0.0)) / 100.0 * this.value * 100.0) / 100.0;
+
+
+        //Math.round(gross / 100.0 * $value * 100.0) / 100.0;
+
+
+       double value  =$act.getGross() * $value / 100.0 ;
+    if ($ceiling != null  && !$ceiling.isNaN() && $ceiling > 0.0d) {
+
+
+        // Calculate the total future copayment
+        double futureCopayTotal = $claimTotal + value;
+
+        // Ensure the copayment does not exceed the ceiling
+        if (futureCopayTotal > $ceiling) {
+            applied_Copay = $ceiling - $claimTotal;
+            applied_Copay = applied_Copay < 0 ? -1 * applied_Copay : applied_Copay;
+        }else {
+            applied_Copay = value;
+        }
+        // Round the applied copayment to two decimal places
+        applied_Copay =  roundDouble(applied_Copay);
+
+        // Update the claim total with the applied copayment
+        $coPayment.setClaimTotal($claimTotal + applied_Copay);
+
+    msg=" Set coPayment with ceiling";
+    } else {
+        applied_Copay =value;
+        msg=" Set coPayment without ceiling";
+    }
+    msg=msg+" for "+$type+" to [" + applied_Copay + "] For Activity=" + $act.getIdCaller() + " code [" + $act.getCode()+"].";
+            // Add outcome for logging purposes
+  $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+
+  printLogInfo(sRuleName,msg,$c.getLogInfo());
+    $act.setCopayment(applied_Copay);
+    update($act);
+    update($coPayment);
+end
+//---------------------------------------------------------
+rule 'COInsurane_Mix_type'
+dialect "mvel"
+salience -5003
+no-loop
+when
+    $c: Claim()
+    Encounter($encType: type) from $c.encounter
+    ClaimType($claimtype:type ) from $c.claimType
+    $act: Activity(
+        gross != null,gross > 0,!gross.isNaN(),$gross: gross,CoInsurance == null)
+    // - Capture ceiling and claimTotal for future calculations
+    $coIns: CoInsurance($type:type,type !=null,
+       ((type == "Out Patient Maternity"  && IsOP($encType) && $claimtype == ClaimType.Maternity )||
+       ( type == "In Patient Maternity"   && IsIP($encType) && $claimtype == ClaimType.Maternity )||
+       ( type == "Out Patient Dental"  && IsOP($encType) && $claimtype == ClaimType.Dental )||
+       ( type == "In Patient Dental"   && IsIP($encType) && $claimtype == ClaimType.Dental )||
+       ( type == "Out Patient Optical"  && IsOP($encType) && $claimtype == ClaimType.Optical )||
+       ( type == "In Patient Optical"   && IsIP($encType) && $claimtype == ClaimType.Optical )),
+        value > 0, $value:value,
+        $ceiling: ceiling,
+        $claimTotal: claimTotal
+    )
+then
+    String sRuleName = drools.getRule().getName();
+    double appliedCoInsurance = 0.0d;
+     String msg="";
+           double value  =$act.getGross() * $value / 100.0 ;
+    // Check if a valid ceiling exists
+    if ($ceiling != null  && !$ceiling.isNaN() && $ceiling > 0.0d) {
+//        double value = $coIns.getValue($act.getGross(), $act.getDeductible());
+
+        double futureCoIns = $claimTotal + value;
+
+        // Ensure does not exceed the ceiling
+        if (futureCoIns > $ceiling) {
+            appliedCoInsurance = $ceiling - $claimTotal;
+            appliedCoInsurance = appliedCoInsurance < 0 ? -1 * appliedCoInsurance : appliedCoInsurance;
+        }else {
+            appliedCoInsurance = value;
+        }
+        // Round the applied  to two decimal places
+        appliedCoInsurance =  roundDouble(appliedCoInsurance);
+        // Update the claim total with the applied
+        $coIns.setClaimTotal($claimTotal + appliedCoInsurance);
+        msg=" Set CoInsurance with ceiling";
+    } else {
+        // If no ceiling exists, apply the full CoInsurance value
+//        appliedCoInsurance = roundDouble($coIns.getValue($act.getGross(), $act.getDeductible()));
+
+//        appliedCoInsurance =Math.round($act.getGross() * $value / 100.0 );
+appliedCoInsurance =value;
+        msg=" Set CoInsurance without ceiling";
+    }
+    msg=msg+" as ["+$value +"] for "+$type+" to [" + appliedCoInsurance + "] For Activity code [" + $act.getCode()+"].";
+            // Add outcome for logging purposes
+    $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+    printLogInfo(sRuleName,msg,$c.getLogInfo());
+    $act.setCoInsurance(appliedCoInsurance);
+    update($act);
+    update($coIns);
+end
+
+//------------------------------------------------------------------
+//---------------------------------------------------------
+rule 'COInsurane_Encounter_type'
+dialect "mvel"
+salience -5005
+
+when
+    $c: Claim()
+    Encounter($encType: type) from $c.encounter
+    $act: Activity(
+        gross != null,gross > 0,!gross.isNaN(),$gross: gross,CoInsurance == null)
+    // - Capture ceiling and claimTotal for future calculations
+    $coIns: CoInsurance($type:type,
+       (((type == "Out Patient" || type =="Basic Out Patient") && IsOP($encType))||
+       (( type == "In Patient"  || type =="Basic In Patient" ) && IsIP($encType))),
+        value > 0, $value:value,
+        $ceiling: ceiling,
+        $claimTotal: claimTotal
+    )
+then
+    String sRuleName = drools.getRule().getName();
+    double appliedCoInsurance = 0.0d;
+    double value  =$act.getGross() * $value / 100.0 ;
+
+     String msg="";
+    // Check if a valid ceiling exists
+    if ($ceiling != null  && !$ceiling.isNaN() && $ceiling > 0.0d) {
+//        double value = $coIns.getValue($act.getGross(), $act.getDeductible());
+        double futureCoIns = $claimTotal + value;
+
+        // Ensure does not exceed the ceiling
+        if (futureCoIns > $ceiling) {
+            appliedCoInsurance = $ceiling - $claimTotal;
+            appliedCoInsurance = appliedCoInsurance < 0 ? -1 * appliedCoInsurance : appliedCoInsurance;
+        }else {
+            appliedCoInsurance = value;
+        }
+        // Round the applied  to two decimal places
+        appliedCoInsurance =  roundDouble(appliedCoInsurance);
+        // Update the claim total with the applied
+        $coIns.setClaimTotal($claimTotal + appliedCoInsurance);
+        msg=" Set CoInsurance with ceiling";
+    } else {
+        // If no ceiling exists, apply the full CoInsurance value
+        // appliedCoInsurance = roundDouble($coIns.getValue($act.getGross(), $act.getDeductible()));
+        appliedCoInsurance =value;
+        msg=" Set CoInsurance without ceiling";
+    }
+    msg=msg+" as ["+$value +"] for "+$type+" to [" + appliedCoInsurance + "] For Activity code [" + $act.getCode()+"].";
+    $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+    printLogInfo(sRuleName,msg,$c.getLogInfo());
+    $act.setCoInsurance(appliedCoInsurance);
+    update($act);
+    update($coIns);
+end
+
+//------------------------------------------------------------------
+
+//---------------------------------------------------------
+rule 'COInsurane_Claim_type'
+dialect "mvel"
+salience -5004
+
+when
+    $c: Claim()
+    ClaimType($claimtype:type ) from $c.claimType
+    $act: Activity(
+        gross != null,gross > 0,!gross.isNaN(),$gross: gross,
+        CoInsurance == null)
+    // - Capture ceiling and claimTotal for future calculations
+    $coIns: CoInsurance($type:type,
+       ( ( type == "Dental" && $claimtype == ClaimType.Dental)
+       ||( type == "Optical" && $claimtype == ClaimType.Optical)
+       ||( type == "Maternity" && $claimtype == ClaimType.Maternity)
+       ),
+        value > 0, $value:value,
+        $ceiling: ceiling,
+        $claimTotal: claimTotal
+    )
+then
+     String sRuleName = drools.getRule().getName();
+     double appliedCoInsurance = 0.0d;
+
+       double value  =$act.getGross() * $value / 100.0 ;
+      String msg="";
+     // Check if a valid ceiling exists
+     if ($ceiling != null  && !$ceiling.isNaN() && $ceiling > 0.0d) {
+//         double value = $coIns.getValue($act.getGross(), $act.getDeductible());
+         double futureCoIns = $claimTotal + value;
+
+         // Ensure does not exceed the ceiling
+         if (futureCoIns > $ceiling) {
+             appliedCoInsurance = $ceiling - $claimTotal;
+             appliedCoInsurance = appliedCoInsurance < 0 ? -1 * appliedCoInsurance : appliedCoInsurance;
+         }else {
+             appliedCoInsurance = value;
+         }
+         // Round the applied  to two decimal places
+         appliedCoInsurance =  roundDouble(appliedCoInsurance);
+         // Update the claim total with the applied
+         $coIns.setClaimTotal($claimTotal + appliedCoInsurance);
+
+ msg=" Set CoInsurance with ceiling";
+     } else {
+         // If no ceiling exists, apply the full CoInsurance value
+//         appliedCoInsurance = roundDouble($coIns.getValue($act.getGross(), $act.getDeductible()));
+        appliedCoInsurance =value;
+ msg=" Set CoInsurance without ceiling";
+     }
+  msg=msg+" for "+$type+" to [" + appliedCoInsurance + "] For Activity=" + $act.getIdCaller() + " code [" + $act.getCode()+"].";
+             // Add outcome for logging purposes
+   $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+  printLogInfo(sRuleName,msg,$c.getLogInfo());
+     $act.setCoInsurance(appliedCoInsurance);
+     update($act);
+     update($coIns);
+end
+//---------------------------------------------------------
+rule 'COPAY_Mix_type'
+dialect "mvel"
+salience -5003
+
+when
+    $c: Claim()
+    Encounter($encType: type) from $c.encounter
+    ClaimType($claimtype:type ) from $c.claimType
+    $act: Activity(
+        gross != null,gross > 0,!gross.isNaN(),$gross: gross,
+        copayment == null)
+    // - Capture ceiling and claimTotal for future calculations
+    $coPayment: CoPayment($type:type,type !=null,
+       ((type == "Out Patient Maternity"  && IsOP($encType) && $claimtype == ClaimType.Maternity )||
+       ( type == "In Patient Maternity"   && IsIP($encType) && $claimtype == ClaimType.Maternity )||
+       ( type == "Out Patient Dental"     && IsOP($encType) && $claimtype == ClaimType.Dental  )||
+       ( type == "In Patient Dental"      && IsIP($encType) && $claimtype == ClaimType.Dental  )||
+       ( type == "Out Patient Optical"    && IsOP($encType) && $claimtype == ClaimType.Optical )||
+       ( type == "In Patient Optical"     && IsIP($encType) && $claimtype == ClaimType.Optical )
+
+       ),
+        value > 0, $value:value,
+        $ceiling: ceiling,
+        $claimTotal: claimTotal
+    )
+then
+    String sRuleName = drools.getRule().getName();
+    double applied_Copay = 0.0d;
+    String msg="";
+
+    double value  =$act.getGross() * $value / 100.0 ;
+    if ($ceiling != null  && !$ceiling.isNaN() && $ceiling > 0.0d) {
+        // Compute the copayment value based on gross and deductible
+//        double value = $coPayment.getValue($act.getGross(), $act.getDeductible());
+
+        // Calculate the total future copayment
+        double futureCopayTotal = $claimTotal + value;
+
+        // Ensure the copayment does not exceed the ceiling
+        if (futureCopayTotal > $ceiling) {
+            applied_Copay = $ceiling - $claimTotal;
+            applied_Copay = applied_Copay < 0 ? -1 * applied_Copay : applied_Copay;
+        }else {
+            applied_Copay = value;
+        }
+        // Round the applied copayment to two decimal places
+        applied_Copay =  roundDouble(applied_Copay);
+        // Update the claim total with the applied copayment
+        $coPayment.setClaimTotal($claimTotal + applied_Copay);
+        msg=" Set coPayment with ceiling";
+    } else {
+        // If no ceiling exists, apply the full copayment value
+//        applied_Copay = roundDouble($coPayment.getValue($act.getGross(), $act.getDeductible()));
+//applied_Copay =Math.round($act.getGross() * $value / 100.0 );
+ applied_Copay=value;
+msg=" Set coPayment without ceiling ";
+    }
+ msg=msg+" value["+$value+"] for "+$type+" applied [" + applied_Copay + "] For Activity=" + $act.getIdCaller() + " code [" + $act.getCode()+"].";
+            // Add outcome for logging purposes
+  $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+  printLogInfo(sRuleName,msg,$c.getLogInfo());
+  $act.setCopayment(applied_Copay);
+  update($act);
+  update($coPayment);
+end
+//------------------------------------------------------------------
+
+rule 'COPAY_Encounter_type'
+dialect "mvel"
+salience -5005
+
+when
+    $c: Claim()
+    Encounter($encType: type) from $c.encounter
+    $act: Activity(
+        gross != null,gross > 0,!gross.isNaN(),$gross: gross,
+        copayment == null)
+    // - Capture ceiling and claimTotal for future calculations
+    $coPayment: CoPayment($type:type,
+       (((type == "Out Patient" || type =="Basic Out Patient") && IsOP($encType))||
+       (( type == "In Patient"  || type =="Basic In Patient" ) && IsIP($encType))),
+        value > 0, $value:value,
+        $ceiling: ceiling,
+        $claimTotal: claimTotal
+    )
+then
+    String sRuleName = drools.getRule().getName();
+    double applied_Copay = 0.0d;
+     String msg="";
+
+    double value  =$act.getGross() * $value / 100.0 ;
+    if ($ceiling != null  && !$ceiling.isNaN() && $ceiling > 0.0d) {
+
+//        double value = $coPayment.getValue($act.getGross(), $act.getDeductible());
+
+        // Calculate the total future copayment
+        double futureCopayTotal = $claimTotal + value;
+
+        // Ensure the copayment does not exceed the ceiling
+        if (futureCopayTotal > $ceiling) {
+            applied_Copay = $ceiling - $claimTotal;
+            applied_Copay = applied_Copay < 0 ? -1 * applied_Copay : applied_Copay;
+        }else {
+            applied_Copay = value;
+        }
+        // Round the applied copayment to two decimal places
+        applied_Copay =  roundDouble(applied_Copay);
+        // Update the claim total with the applied copayment
+        $coPayment.setClaimTotal($claimTotal + applied_Copay);
+        msg=" Set coPayment with ceiling";
+    } else {
+
+        // If no ceiling exists, apply the full copayment value
+        applied_Copay=value;
+        //        applied_Copay = roundDouble($coPayment.getValue($act.getGross(), $act.getDeductible()));
+
+        msg=" Set coPayment without ceiling ";
+    }
+
+  msg=msg+"value["+$value+"] for "+$type+" applied [" + applied_Copay + "] For Activity=" + $act.getIdCaller() + " code [" + $act.getCode()+"].";
+  $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+  printLogInfo(sRuleName,msg,$c.getLogInfo());
+  $act.setCopayment(applied_Copay);
+  update($act);
+  update($coPayment);
+end
+//------------------------------------------------------------------
+//------------------------------------------------------------------
+rule 'DEDUCTIBLE_Mix_type'
+dialect 'mvel'
+salience -5003
+
+when
+    $c: Claim()
+    Encounter($encType: type) from $c.encounter
+    ClaimType($claimtype:type ) from $c.claimType
+    $deductible: Deductible($type:type ,type !=null,
+       ((type == "Out Patient Maternity"  && IsOP($encType) && $claimtype == ClaimType.Maternity )||
+       ( type == "In Patient Maternity"   && IsIP($encType) && $claimtype == ClaimType.Maternity )||
+       ( type == "Out Patient Dental"     && IsOP($encType) && $claimtype == ClaimType.Dental    )||
+       ( type == "In Patient Dental"      && IsIP($encType) && $claimtype == ClaimType.Dental    )||
+       ( type == "Out Patient Optical"    && IsOP($encType) && $claimtype == ClaimType.Optical   )||
+       ( type == "In Patient Optical"     && IsIP($encType) && $claimtype == ClaimType.Optical   )
+
+       ),
+    value > 0, $ceiling: ceiling, $claimTotal: claimTotal, $value: value)
+    $act: Activity(hasDoubleValue(gross), $gross: gross, deductible == null)
+
+    // Calculate maximum gross value
+    $maxGross: Double() from accumulate(
+        $a: Activity(hasDoubleValue(gross), deductible == null),
+        max($a.gross)
+    )
+
+    // Count of applied Deductible of the same type
+    accumulate(
+        Activity(hasDoubleValue(deductible), deductible == $value, $code: code),
+        $countOfActs: count($code)
+    )
+
+    // Ensure the rule fires only if this activity hasn't been processed yet and the max gross matches the gross
+    eval($countOfActs < 1 && $maxGross == $gross)
+
+then
+    // Rule name for logging
+    String sRuleName = drools.getRule().getName();
+    String msg = "";
+    double appliedDeductible = 0.0d;
+    // If the ceiling value exists
+    if (hasDoubleValue($ceiling)) {
+        // Apply deductible based on ceiling
+        appliedDeductible = processWithCeiling($ceiling, $claimTotal, $value);
+
+        // Update deductible and claim total
+        $deductible.setClaimTotal($claimTotal + appliedDeductible);
+        msg= "Set deductible with ceiling";
+    } else {
+        // Apply deductible without ceiling
+        appliedDeductible = roundDouble($value);
+
+        // Ensure deductible is not greater than the gross amount
+        if (appliedDeductible > $gross) {
+            appliedDeductible = $gross;
+        }
+
+        // Update claim total and check if deductible needs to be reset
+        $claimTotal = $claimTotal + appliedDeductible;
+        if ($claimTotal > $value) {
+            appliedDeductible = 0.0d;
+        }
+        $deductible.setClaimTotal($claimTotal);
+        msg= "Set deductible without ceiling";
+    }
+
+        $act.setDeductible(appliedDeductible);
+        msg= msg +" for " + $type +" ["+ appliedDeductible + "] For Activity code [" + $act.getCode() + "] max gross=" + $maxGross + ". gross: " + $gross + " countOfActs: " + $countOfActs + " claimTotal: " + $claimTotal;
+        $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+        printLogInfo(sRuleName,msg,$c.getLogInfo());
+        update($deductible);
+        update($act);
+end
+//-------------------------------------------------
+rule 'DEDUCTIBLE_Claim_type'
+dialect 'mvel'
+salience -5004
+
+when
+    $c: Claim()
+     ClaimType($claimtype:type ) from $c.claimType
+    $deductible: Deductible($type:type,
+    (    ( type == "Dental"    && $claimtype == ClaimType.Dental)
+       ||( type == "Optical"   && $claimtype == ClaimType.Optical)
+       ||( type == "Maternity" && $claimtype == ClaimType.Maternity)
+
+       ),
+    value > 0, $ceiling: ceiling, $claimTotal: claimTotal, $value: value)
+    $act: Activity(hasDoubleValue(gross), $gross: gross, deductible == null)
+
+    // Calculate maximum gross value
+    $maxGross: Double() from accumulate(
+        $a: Activity(hasDoubleValue(gross), deductible == null),
+        max($a.gross)
+    )
+
+    // Count of applied Deductible of the same type
+    accumulate(
+        Activity(hasDoubleValue(deductible), deductible == $value, $code: code),
+        $countOfActs: count($code)
+    )
+
+    // Ensure the rule fires only if this activity hasn't been processed yet and the max gross matches the gross
+    eval($countOfActs < 1 && $maxGross == $gross)
+
+then
+    // Rule name for logging
+    String sRuleName = drools.getRule().getName();
+    String msg = "";
+    double appliedDeductible = 0.0d;
+    // If the ceiling value exists
+    if (hasDoubleValue($ceiling)) {
+        // Apply deductible based on ceiling
+        appliedDeductible = processWithCeiling($ceiling, $claimTotal, $value);
+
+        // Update deductible and claim total
+        $deductible.setClaimTotal($claimTotal + appliedDeductible);
+        msg= "Set deductible with ceiling";
+    } else {
+        // Apply deductible without ceiling
+        appliedDeductible = roundDouble($value);
+
+        // Ensure deductible is not greater than the gross amount
+        if (appliedDeductible > $gross) {
+            appliedDeductible = $gross;
+        }
+
+        // Update claim total and check if deductible needs to be reset
+        $claimTotal = $claimTotal + appliedDeductible;
+        if ($claimTotal > $value) {
+            appliedDeductible = 0.0d;
+        }
+        $deductible.setClaimTotal($claimTotal);
+        msg= "Set deductible without ceiling";
+    }
+
+        $act.setDeductible(appliedDeductible);
+        msg= msg +" for " + $type +" ["+ appliedDeductible + "] For Activity  code [" + $act.getCode() + "] max gross=" + $maxGross + ". gross: " + $gross + " countOfActs: " + $countOfActs + " claimTotal: " + $claimTotal;
+        $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+        printLogInfo(sRuleName,msg,$c.getLogInfo());
+        update($deductible);
+        update($act);
+end
+//-----------------------------------------
+rule 'DEDUCTIBLE_Encounter_type'
+dialect 'mvel'
+salience -5005
+
+when
+    $c: Claim()
+    Encounter($encType: type) from $c.encounter
+    $deductible: Deductible($type:type,
+       (((type == "Out Patient" || type =="Basic Out Patient") && IsOP($encType))||
+       (( type == "In Patient"  || type =="Basic In Patient" ) && IsIP($encType))),
+    value > 0, $ceiling: ceiling, $claimTotal: claimTotal, $value: value)
+    $act: Activity(hasDoubleValue(gross), $gross: gross, deductible == null)
+
+    // Calculate maximum gross value
+    $maxGross: Double() from accumulate(
+        $a: Activity(hasDoubleValue(gross), deductible == null),
+        max($a.gross)
+    )
+
+    // Count of applied Deductible of the same type
+    accumulate(
+        Activity(hasDoubleValue(deductible), deductible == $value, $code: code),
+        $countOfActs: count($code)
+    )
+
+    // Ensure the rule fires only if this activity hasn't been processed yet and the max gross matches the gross
+    eval($countOfActs < 1 && $maxGross == $gross)
+
+then
+    // Rule name for logging
+    String sRuleName = drools.getRule().getName();
+    String msg = "";
+    double appliedDeductible = 0.0d;
+    // If the ceiling value exists
+    if (hasDoubleValue($ceiling)) {
+        // Apply deductible based on ceiling
+        appliedDeductible = processWithCeiling($ceiling, $claimTotal, $value);
+
+        // Update deductible and claim total
+        $deductible.setClaimTotal($claimTotal + appliedDeductible);
+        msg= "Set deductible with ceiling";
+    } else {
+        // Apply deductible without ceiling
+        appliedDeductible = roundDouble($value);
+
+        // Ensure deductible is not greater than the gross amount
+        if (appliedDeductible > $gross) {
+            appliedDeductible = $gross;
+        }
+
+        // Update claim total and check if deductible needs to be reset
+        $claimTotal = $claimTotal + appliedDeductible;
+        if ($claimTotal > $value) {
+            appliedDeductible = 0.0d;
+        }
+        $deductible.setClaimTotal($claimTotal);
+        msg= "Set deductible without ceiling";
+    }
+
+        $act.setDeductible(appliedDeductible);
+        msg= msg +" for " + $type +" ["+ appliedDeductible + "] For Activity code=" + $act.getCode() + " max gross=" + $maxGross + ". gross: " + $gross + " countOfActs: " + $countOfActs + " claimTotal: " + $claimTotal;
+        $act.addOutcome(Severity.INFO, sRuleName, msg, "");
+        printLogInfo(sRuleName,msg,$c.getLogInfo());
+        update($deductible);
+        update($act);
+end
+//---------------------------------------------------
+rule 'CALC_PatientShare_SelfPay'
+dialect 'mvel'
+salience -5020
+when
+$c:Claim(payerID!=null,payerID=="SP001")
+$act:Activity(hasDoubleValue(gross),
+//			net == null || net.isNaN(),
+			patientShare == null || patientShare.isNaN(),
+			$gross :gross,
+			$copayment :copayment,
+			$deductible :deductible)
+
+then
+    if (($deductible == null) || ($deductible.isNaN()))
+{
+        $deductible=0.0d;
+}
+    if ($copayment==null || $copayment.isNaN())
+    {$copayment=0.0d;
+    }
+//	double patientShare = roundDouble(new Double($deductible+$copayment));
+//	double patientShare = roundDouble($deductible+$copayment);
+//need to restudy
+    double patientShare = $gross;
+    //need to restudy
+
+//	double calc_net = roundDouble($gross-patientShare);
+//	if(calc_net <0){
+//		calc_net = 0;
+//	}
+String msg=" Set patientShare="+patientShare + " For Activity code="+$act.getCode()+" Net: "+$act.getNet();
+
+	  printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),
+		msg , "");
+
+	$act.setPatientShare(patientShare);
+//	$act.setNet(calc_net);
+//??????????????????????
+	$act.setNet(0.0d);
+	update($act);
+
+end
+//-------
+rule 'CALC_PatientShare_healthCard'
+dialect 'mvel'
+salience -5021
+when
+$c:Claim()
+$p:Patient(patientInsurance != null)from $c.patient
+$pi:PatientInsurance(cardType==1/*HealthCard*/) from $p.patientInsurance
+$act:Activity(hasDoubleValue(gross),
+//			net == null || net.isNaN(),
+			patientShare == null || patientShare.isNaN(),
+			$gross :gross,
+			$copayment :copayment,
+			$deductible :deductible)
+then
+    if (($deductible == null) || ($deductible.isNaN()))
+{
+        $deductible=0.0d;
+}
+    if ($copayment==null || $copayment.isNaN())
+    {$copayment=0.0d;
+    }
+//	double patientShare = roundDouble(new Double($deductible+$copayment));
+//	double patientShare = roundDouble($deductible+$copayment);
+//need to restudy
+    double patientShare = $gross;
+    //need to restudy
+
+//	double calc_net = roundDouble($gross-patientShare);
+//	if(calc_net <0){
+//		calc_net = 0;
+//	}
+
+	String msg =" Set patientShare="+patientShare + " For Activity="+$act.getIdCaller()+" code="+$act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg , "");
+
+	$act.setPatientShare(patientShare);
+//	$act.setNet(calc_net);
+//??????????????????????
+	$act.setNet(0.0d);
+	update($act);
+end
+//-------
+rule 'CALC_PatientShare'
+dialect 'mvel'
+salience -5022
+when
+$c:Claim(payerID!=null,payerID!="SP001")
+$p:Patient(patientInsurance != null)from $c.patient
+$pi:PatientInsurance(cardType!=1/*HealthCard*/) from $p.patientInsurance
+$act:Activity(hasDoubleValue(gross),
+			net == null || net.isNaN(),
+			patientShare == null || patientShare.isNaN(),
+			$gross :gross,
+			$copayment :copayment,
+			$deductible :deductible,
+			$coInsurance:coInsurance)
+then
+int r=0;
+    if (($deductible == null) || ($deductible.isNaN())){
+        $deductible=0.0d;
+        r=2;
+    }
+    if ($copayment==null || $copayment.isNaN()){
+        $copayment=0.0d;
+        r=1;
+    }
+    if ($coInsurance==null || $coInsurance.isNaN()){
+        $coInsurance=0.0d;
+         r=3;
+    }
+	double patientShare = roundDouble($deductible+$copayment+$coInsurance);
+//	double patientShare = $deductible+$copayment+$coInsurance;
+ 	double calc_net = roundDouble($gross-patientShare);
+	if(calc_net <0){
+		calc_net = 0;
+	}
+	String msg=" Set patientShare=["+patientShare + "]=deductible ["+$deductible+"] + co-payment ["+$copayment+"] +coinsurance ["+$coInsurance+"] For Activity= "+$act.getIdCaller()+" code="+$act.getCode()+".R"+r;
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg,msg);
+
+	$act.setPatientShare(patientShare);
+	$act.setNet(calc_net);
+	update($act);
+
+end
+//-------
+rule 'CALC_ACTIVITY_NET'
+dialect 'mvel'
+salience -5600
+when
+$c:Claim()
+$act:Activity(hasDoubleValue(gross),
+			net == null || net.isNaN(),
+			$patientShare:patientShare,
+			patientShare != null,
+			$gross :gross,
+			$discount:discount,
+			$list:list)
+
+then
+	double calc_net = roundDouble($gross-$patientShare);
+//	double calc_net = roundDouble($list-$discount);
+
+	if(calc_net <0){
+		calc_net = 0;
+	}
+	String msg=" Set net =["+calc_net+ "] patientShare =["+$patientShare + "] For Activity="+$act.getIdCaller()+" code="+$act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+	$act.setNet(calc_net);
+	update($act);
+end
+//------------------------------------------------------
+
+rule 'CALC_ACTIVITY_NET_REPORTING'
+dialect 'mvel'
+salience -5900
+when
+	$c:Claim(logInfo==true)
+	$act:Activity()
+then
+String msg=" gross="+ $act.getGross()+
+           		" list = "+$act.getList()+
+           		" patientShare= "+$act.getPatientShare()+
+           		" deductible  = "+$act.getDeductible()+
+           		" coInsurance = "+$act.getCoInsurance()+
+           		" co-payment  = "+$act.getCopayment();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+end
+//-------------------------------------------------------
+rule 'CALC_CLAIM_TOTALS'
+dialect 'mvel'
+salience -10010
+when
+	$c:Claim(patientShare ==null, net==null, gross == null)
+	$totalGross: Number(doubleValue>0.0) from accumulate ( Activity(gross != null, gross >0.0d, !gross.isNaN(),$gross:gross ), sum($gross))
+	$totalDed: Number() from accumulate(
+	Activity(deductible != null, deductible >0.0, !deductible.isNaN(), $deductible :deductible), sum($deductible ) )
+	$totalCoPay: Number() from accumulate(
+		Activity(copayment != null, copayment >0.0, !copayment.isNaN(), $copayment :copayment )
+		, sum($copayment ) )
+	$totalCoInsurance: Number() from accumulate(
+		Activity(coInsurance != null, coInsurance >0.0, !coInsurance.isNaN(), $coInsurance :coInsurance )
+		, sum($coInsurance))
+	$totalPShare: Number() from accumulate(
+		Activity( patientShare != null, patientShare >0.0, !patientShare.isNaN(), $patientShare :patientShare )
+		, sum($patientShare) )
+	$totalExPBP: Number() from accumulate(
+		Activity(EX_PBP!= null, !EX_PBP.isNaN(), $EX_PBP:EX_PBP)
+		, sum($EX_PBP ))
+then
+	double patientShare = roundDouble($totalDed+$totalCoPay+$totalExPBP);
+//	double patientShare = roundDouble($totalPShare);
+	double net = roundDouble($totalGross - patientShare);
+    String msg =" CALC_CLAIM_TOTALS : totalDeductible =" + $totalDed +
+                		", totalCoPayment =" + $totalCoPay +
+                		", totalCoInsurance =" + $totalCoInsurance +
+                		", Extra PBP=" + $totalExPBP +
+                		", totalGross =" + $totalGross +
+                		", patientShare=" + patientShare +
+                		", Net=" + net;
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");//60
+
+	$c.setGross(roundDouble($totalGross.doubleValue()));
+	$c.setPatientShare(patientShare);
+	$c.setNet(net);
+	update($c);
+end
+//------------------------------------------
+rule 'Apply_Rejected_Amount'
+dialect 'mvel'
+salience -5010
+when
+	$c:Claim( )
+	$act: Activity(
+	    gross != null, $gross: gross,
+        list != null, !list.isNaN(), $list: list,
+        custom_Price_Types != null, custom_Price_Types.contains("2"),
+        net != null, $net: net,
+        rejected_Amount != null, rejected_Amount > 0.0d, $rejected_Amount: rejected_Amount,
+        $patientshare: patientShare
+    )
+    not(ActivityOutcome(ruleName == "Set_Activity_Cash") from $act.outcome)
+    not(ActivityOutcome(ruleName == "Apply_Rejected_Amount") from $act.outcome)
+then
+
+    double appliedPatientShare = roundDouble($patientshare);
+    double appliedNet = roundDouble($net);
+    double appliedRejected_Amount = roundDouble($rejected_Amount);
+
+    // Update the Activity's net amount by subtracting the rejected amount
+    if (appliedRejected_Amount>appliedNet){
+        appliedRejected_Amount =appliedNet ;
+    }
+
+    $act.setNet(appliedNet - appliedRejected_Amount);
+
+    // Update the Activity's patient share by adding the rejected amount
+    $act.setPatientShare(appliedPatientShare + appliedRejected_Amount);
+
+    String msg ="Based on list price = " + $list + " for code=[" + $act.getCode() + "] appliedRejected_Amount [" + appliedRejected_Amount + "] and set net to ["+$act.getNet()+"] And patient Share to ["+ $act.getPatientShare()+"]";
+
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+
+    update($act);
+end
+//-----------------------------------------------
+rule 'Set_Activity_Cash'
+dialect 'mvel'
+salience -6000
+no-loop
+when
+	$c:Claim( )
+	$act: Activity(
+	    list != null,!list.isNaN(),$list: list,
+	    custom_Price_Types != null,
+	    custom_Price_Types.contains("1") || custom_Price_Types.contains("6"),
+	    gross != null,$gross: gross,
+	    net != null, $net: net,
+	    $patientshare: patientShare, patientShare != null
+	)
+    not(ActivityOutcome(ruleName=="Set_Activity_Cash") from $act.outcome)
+then
+    double appliedPatientShare = roundDouble(new Double($patientshare));
+
+    double appliedNet = roundDouble(new Double($net));
+    Double patientShare = roundDouble(appliedPatientShare + appliedNet);
+
+    String msg ="";
+    // Calculate special discount percentage if it exists:
+    // If specialDiscountPercentage is null, use 0.0.
+    // If it exists, ensure it is not NaN, and calculate the discount as (gross / 100) * specialDiscountPercentage.
+    Double specialDiscount = ($act.getSpecialDiscountPercentage() == null ? 0.0d :
+        ($act.getSpecialDiscountPercentage().isNaN() ? 0.0d : roundDouble(($gross / 100) * $act.getSpecialDiscountPercentage())));
+
+    // If the calculated specialDiscount is 0 or null but there is a positive specialDiscountAmount defined,
+    // then use that specialDiscountAmount instead.
+    if ((specialDiscount == null || specialDiscount == 0.0d) &&
+        (($act.getSpecialDiscountAmount() != null) && ($act.getSpecialDiscountAmount() > 0.0d))) {
+        specialDiscount = $act.getSpecialDiscountAmount();
+    }
+
+    // If a valid special discount exists (greater than 0), apply it:
+    if (specialDiscount != null && specialDiscount > 0.0d) {
+        // Subtract the special discount from the patient share.
+        patientShare = patientShare - specialDiscount;
+
+        // Ensure that patient share does not fall below zero.
+        if (patientShare < 0) {
+            patientShare = 0.0d;
+        }
+        msg = " Apply special discount [" + specialDiscount + "] . ";
+    }
+
+    // Set the final calculated patient share on the Activity.
+    $act.setPatientShare(patientShare);
+
+    // Reset the net value on the Activity to 0.0.
+    $act.setNet(0.0d);
+
+    msg =" based on list price = " + $list + " to Activity code= [" + $act.getCode() + "] "+msg+" Patient share [" + roundDouble(appliedPatientShare + appliedNet) + "] .";
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $c.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end

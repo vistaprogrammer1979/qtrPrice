@@ -1,0 +1,690 @@
+package com.santechture.price.qatart;
+
+import java.util.ArrayList
+import java.util.Set
+import com.santechture.request.ClaimType
+import com.santechture.request.Workflow
+import com.santechture.Facility
+import com.santechture.request.ObservationOutcome
+import com.santechture.SPCCodeFactor
+import com.santechture.request.Activity
+import com.santechture.ObseleteEncounter
+import com.santechture.request.Diagnosis
+import com.santechture.request.ClaimOutcome
+import com.santechture.dao.DAO
+import com.santechture.request.ActivityOutcome
+import com.santechture.request.WorkflowOutcome
+import com.santechture.request.Contract
+import com.santechture.CusPriceList
+import com.santechture.request.DiagnosisOutcome
+import com.santechture.request.AppliedDeductible
+import com.santechture.SPCGroupFactor
+import com.santechture.request.EncounterOutcome
+import com.santechture.GroupCodesRange
+import com.santechture.CusContract
+import com.santechture.SPCContract
+import com.santechture.request.AppliedCopayment
+import com.santechture.ObseleteClaim
+import com.santechture.request.Request
+import com.santechture.request.Authorisation
+import com.santechture.request.PatientInsurance
+import com.santechture.request.ExtendedValidationType
+import com.santechture.Severity
+import com.santechture.request.Encounter
+import com.santechture.ObseleteActivity
+import com.santechture.request.PatientOutcome
+import com.santechture.ControlFact
+import com.santechture.request.Observation
+import com.santechture.DrugPrice
+import com.santechture.request.ContractOutcome
+import com.santechture.request.CodeType
+import com.santechture.request.ActivityGroup
+import com.santechture.CusPriceListItem
+import com.santechture.ObseleteClaimInfo
+import com.santechture.request.AuthorisationOutcome
+import com.santechture.request.Header
+import com.santechture.MasterPriceListItem
+import com.santechture.MasterPriceList
+import com.santechture.request.RequestOutcome
+import com.santechture.request.PatientInsuranceOutcome
+import com.santechture.Clinician
+import com.santechture.request.ResubmissionOutcome
+import com.santechture.request.Patient
+import com.santechture.request.Resubmission
+import com.santechture.request.Claim
+import com.santechture.Regulator
+import com.santechture.ObseleteDiagnosis
+import com.santechture.request.HeaderOutcome
+import com.santechture.CodeGroup
+import com.santechture.FacilityType
+import com.santechture.request.ExtendedValidationTypeOutcome
+import com.santechture.request.CoPayment
+import com.santechture.request.Deductible
+import com.santechture.DHA_DRG
+import com.santechture.DHA_DRG_HighCost
+import com.santechture.DRGExcludedCpts
+import com.santechture.DHA_DRG_COST_PER_ACTIVITY
+import com.santechture.PackageCode
+import com.santechture.CustomCode
+import com.santechture.PackageItemCode
+import com.santechture.RCMFacilityCodeMapping
+
+rule 'QPE1_Discount100_10100012178400000_Dental_FollowUp_Free_Diplomatic'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+ $c:Claim(patient != null)
+ $act:Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,discount == null,serviceItemSerialNumber =="101000096911")
+ $p:Patient(subBillingGroup!=null,subBillingGroup =="DP",patientInsurance != null) from $c.patient
+ $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+ Encounter(inchargeDoctorSpecialty != null,inchargeDoctorSpecialty in ("101000000574","101000000575","101000000659")
+ ,start!=null,start.getTime()>=getTimefromDate("01/01/2014 19:57:40")) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ 	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+rule 'QPE3_Discount100_10100012178400200_Free_Clinic_HMGH'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000034458")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,$code:code, $type:type)
+$CG: CodeGroup(code==$code,type==$type,name =="Consultation")
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/07/2023 9:21:54"),
+referralClinic!=null,referralClinic =="1") from $c.encounter
+then
+$act.setDiscountPercentage(100.0);
+$act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+//$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+ printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+ $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+rule 'QPE4_Discount100_10100012178400200_Free_Clinic_all_fac_for_OPHT_Post_Op_and_TB_Clinic_Adult'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+	$c:Claim(patient != null)
+	$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+	Encounter(referralClinic!=null,referralClinic in ("2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31","32","33","34","35","36","37","38","39","40","41","42","43","44","45","46","47","48","49","50","51","52","53","54","55","56","57","58","59","60","61","62","63","64","65","66","67","68","69")
+	,start!=null,start.getTime()>=getTimefromDate("11/05/2022 13:58:41")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+rule 'QPE5_Discount100_10100012178400200_Free_Clinic_for_BJC'
+	dialect 'mvel'
+	salience -1001
+	no-loop
+	when
+	$c:Claim(patient != null)
+	$c:Claim(providerID=="101000031580")
+	$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+	Encounter(start!=null,start.getTime()>=getTimefromDate("01/11/2022 7:49:05"),
+	referralClinic!=null,referralClinic in ("70","71")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------
+rule 'QPE6_Discount100_10100012178400100_Free_clinic_for_Rumailah_Mental_Hospital'
+dialect 'mvel'
+salience -1001
+ no-loop
+ when
+ $c:Claim(patient != null)
+ $c:Claim(providerID=="101000030657"||providerID=="Rumillah Mental Health")
+ $act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+ Encounter(start!=null,start.getTime()>=getTimefromDate("02/10/2019 9:55:36"),
+ referralClinic!=null,referralClinic in ("382","383")
+ ) from $c.encounter
+ then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+    $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//------------------------------------------------------------
+rule 'QPE7_Discount100_10100012178400100_UCC_HMC_For_Consultation'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000035920"||providerID=="HMC Urgent Care Center")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("30/04/2020 00:00:00")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+ String msg = "set discount for ["+ $act.getCode()+"] to 100%.";
+ printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+ $act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE8_Discount100_10100012178400100_Podiatry_Free_Clinic_For_HGH'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000024475"||providerID=="Hamad General Hospital")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,$code:code,$type:type,serviceItemSerialNumber in ("101000096909","101000096911"))
+$CG: CodeGroup(code==$code,type==$type,name =="SG0018")
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("05/07/2018 9:59:49"),referralClinic!=null,referralClinic in ("384","640")
+//referralClinic in = ("Podiatry Diabetic FU","Podiatry Diabetic New")
+ ) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE9_Discount100_10100012178400100_Free_Clinic_For_HGH_Podiatry'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000024475"||providerID=="Hamad General Hospital")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+referralClinic!=null,referralClinic in ("72","73","74","75","76","77","78","79")
+//referralClinic in ("568","569","1998","1999","2000","2001","2002","2003")
+) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+ String msg = "set discount for ["+ $act.getCode()+"] to 100%.";
+ printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE10_Discount100_10100012178400100_Free_Clinic_for_all_Facilities'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+//referralClinic = ("1866","2049","2050","2051","2052","2053") AND
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 16:34:37"),
+referralClinic!=null,referralClinic in ("80","81","82","83","84","85")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE11_Discount100_10100012178400100_Free_Clinic_for_CD_Center'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000024451"||providerID=="CD Center")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+//referralClinic!=null,referralClinic in = ("Medical Commission Nurse New","Preventive Medicine New","TB Clinic Adult FU","TB Clinic Adult New","TB Clinic Medical Commision FU","TB Clinic Medical Commision New","TB Clinic Pediatric FU","TB Clinic Pediatric New","TB Contact Screen New","ENT Speech Therapy New","ENT Speech Therapy FU","Diabetes Education New","Dietetics NDC new","CARD Rehab Counselling New","Dietetics New","Dietetics FU","MED Infectious Disease New","MED Infectious Disease FU")
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("07/03/2017 12:00:00")
+,referralClinic!=null,referralClinic in ("385","386","387","388","389","390","391","392","393","394","395","396","397","398","399","400","401","402")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ 	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE12_Discount100_10100012178400100_Free_clinic_for_MH'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000030657"||providerID=="Rumillah Mental Health")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+ referralClinic!=null,referralClinic in ("2","86")) from $c.encounter
+//referralClinic in = ("72","1810")
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE13_Discount100_10100012178400100_Free_clinic_for_all_facilites_except_AWH_AND_CDC'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID not in("101000024448","101000024451","Al Wakra Hospital & CD Center"))
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+ referralClinic!=null,referralClinic in ("70","71","87","88","89","90","91","92","93","94","95","96","97","98","99",
+"100","101","102","103","104","105","106","107","108","109","110","111","112","113","114","115","116","117","118","119","120","121","122","123","124","125","126","127","128","129","130","131","132","133","134","135","136","137","138","19","18","139","140","141","142","143","144","145","146","147","148","149","150","151","152","153","154","155","156","157","158","159","160","161","162","163","164","165","166","167","168","169","170","171","172","173","174","175","176","177","178","179","180","181","182","183","184","185","186","187","188","189","190","191","192","193","194","195","196","197","198","199",
+"200","201","202","203","204","205","206","207","208","209","210","211","212","213","214","215","216","217","218","219","220","221","222","223","224","225","226","227","228","229","230","231","232","233","234","235","236","237","238","239","240","241","242","243","244","245","246","247","248","249","250","251","252","253","254","255","256","257","258","259","260","261","262","263","264","265","266","267","268","269","270","271","272","273","274","275","276","277","278","279","280","281","282","283","284","285","286","287","288","289","290","291","292","293","294","295","296","297","298","299","300","301","302") ) from $c.encounter
+//referralClinic in = ("716","717","99","98","97","118","119","115","1","720","722","1078","1079","1702","1701","1737","1738","1739","1740","723","724","725","726","727","728","184","196","729","730","733","734","662","6","735","737","742","1076","743","745","747","749","110","1682","1681","12","96","753","754","460","459","1698","1697","1666","1665","1668","1667","213","214","1716","1715","1752","1753","1696","1695","1714","1713","1712","1711","292","293","112","1015","1746","1704","1703","1684","1683","1686","1685","765","766","767","769","1670","1669","1672","1671","1678","1677","1680","1679","91","90","92","138","139","150","151","770","771","772","773","774","775","776","777","778","779","780","781","782","783","784","785","786","787","59","790","791","361","362","556","557","1074","1073","514","515","708","795","796","797","798","799","800","801","804","806","807","560","561","562","563","385","386","682","564","565","809","810","811","812","813","814","815","816","498","1743","1067","1744","817","818","819","820","1016","833","834","836","838","840","844","846","1021","1688","1687","1690","1689","1025","1026","1027","1028","1029","1030","1031","1032","1033","1034","1035","1706","1705","1062","1755","1756","1064","1051","1052","1053","1054","1055","1056","1674","1673","1676","1675","1700","1699","1057","1012","1059","1060","1061","1017","1708","1707","1710","1709","1081","1692","1691","1694","1693")
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//--------------------------------------------------------
+rule 'QPE14_Discount100_10100012178400100_Free_clinic_for_all_facilities_except_CDC'
+dialect 'mvel'
+ salience -1001
+ no-loop
+ when
+$c:Claim(patient != null,providerID not in("101000024451","CD Center"))
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+referralClinic!=null,referralClinic in ("303","304","305","306","307","308","309","310","311","312","313","314","20","315","316","317","318","319","320","321","322","323","324","325","326","327","328","329","330","331","332","333","334","335","336","337","338","339","340","341","342","343","344","345","346","347","348","349","350","351","352","353","354","355","356","9","357","358")
+ //("4","38","46","924","899","166","2","631","1747","1160","677","684","1748","546","547","951","957","950","952","1750","1749","958","960","1751","961","792","1328","1305","964","808","965","966","967","971","969","1406","972","973","986","987","985","841","1007","539","658","721","497","1071","1080","718","111","363","364","657","1070","1163","740","768")
+) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE15_Discount100_10100012178400100_Free_Clinic_for_CDC'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000024451"||providerID=="CD Center")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+referralClinic!=null,referralClinic in ("112","141","142","359","360","289","156","246","293","288","7","290","291","292","361","8","13","14","26","362","363","364")
+//referralClinic in ("184","213","214","678","700","1012","1015","1016","1017","1057","1058","1059","1060","1061","1157","1162","1382","1384","1944","1945","1981","1982")
+) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+
+//--------------------------------------------------------
+rule 'QPE16_Discount100_10100012178400100_Free_clinic_for_Baby_Below_1Year'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+Patient(age!=null,age<=1,(subBillingGroup==null ||(subBillingGroup !=null && subBillingGroup !="VI")),patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+referralClinic!=null,referralClinic in("365","366","367","368","369")
+) from $c.encounter
+
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE17_Discount100_10100012178400100_Free_clinic_for_AlWakra_Hospital'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000024448"||providerID=="Al Wakra Hospital")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/06/2015 12:00:00"),
+referralClinic!=null,referralClinic in ("403","404","405","406","407","408","409","410","411","412","413","414","415","416","417","418","419","420","421","422","423","424","425","426","427","428","429","430","431","432","433","434","435","436","437","438","439","440","441","442","443","444","445","446","447","448","396","449","450","451","452","397","453","454","455","456","457","458","459","460","461","462","395","394","463","464","465","466","467","468","469","470","471","472","473","474","475","476","477","385","478","479","480","481","482","483","484","485","486","487","488","489","490","491","492","493","494","495","496","497","498","499","500","501","502","503","504","505","506","507","508","509","510","511","512","513","514","515","516","517","518","519","520","521","522","523","524","525","526","527","528","529","530","531","532","533","534","535","536","537","538","539","540","541","542","543","544","545","546","547","548","549","550","551","552","553","554","555","556","557","558","559","560","561","562","563","564","565","566","567","568","569","570","571","572","573","574","386","575","576","577","578","579","580","581","582","583","584","585","586","587","588","589","590","591","592","593","594","595","596","597","598","599","600","601","602","603","604","605","606","607","608","609","610","611","612","613","614","615","616","617","387","388","389","390","391","392","393","618","619","620","621","622","623","624","625","626","627","628","629","630","631","632","398","399","400","633","634","635","636","637","638","639","384","640")
+) from $c.encounter
+//AND referralClinic!=null,referralClinic in = ("ADHD Assessment FU","ADHD Assessment New","Adult Outreach FU","AK ED Clinic","AK Musuculoskeletal US Clinic","AK Stress Test","ANA Anesthesia Check Male FU","ANA Anesthesia Check Male New","ANA Anesthesia Fu","ANA Anesthesia New","Anesthesia FU","Anesthesia New","Anesthesia Private New","Antenatal Counseling FU","Antenatal Counseling New","Anticoagulation Patient Education FU","Anticoagulation Patient Education New","Audiology Hearing Aid Lab FU","Audiology Hearing Aid Lab New","Auditory Verbal Therapy FU","Auditory Verbal Therapy New","Autism Intervention Clinic FU","Autism Intervention Clinic New","Behavior Therapy Autism FU","Behavior Therapy Autism New","Behavioral Therapy Pediatric FU","Behavioral Therapy Pediatric New","Cardiothoracic Wound Care","Child Rehab Special Education FU","Child Rehab Special Education New","Community Care Adult FU","Community Care Adult New","DEN Maxillo Facial FU","DEN Oral Max Consultation FU","DEN Pedodontics Clinic FU","Dental Endo Restorative FU","Dental Endodontics Clinic FU","Dental Orthodontics FU","Dental Orthodontics Pediatrics FU","Dental Pediatric Pedodontics FU","Dental Pedodontics FU","Dental Periodontics FU","Dental Periodontics Pediatrics FU","Dental Prosthodontics FU","Diabetes Education Clinic","Diabetes Education FU","Diabetes Education New","Diabetes Education Pediatrics FU","Diabetes Education Pediatrics New","DIET Dietary FU","DIET Dietary New","Dietetics NDC new","Dietetics Psychiatry Daycare FU","Dietetics Psychiatry Daycare New","Echo Dobutamine Stress","Echo Exercise Stress","Endocrinology Patient Education Pediatrics FU","Endocrinology Patient Education Pediatrics New","ENT Patient Education FU","ENT Patient Education New","ENT Patient Education Pediatrics FU","ENT Patient Education Pediatrics New","ENT Speech Therapy FU","ENT Speech Therapy New","Gastroenterology Patient Education Pediatrics FU","Gastroenterology Patient Education Pediatrics New","HAND and WRIST Physiotherapy FU","HAND and WRIST Physiotherapy New","Hematology Patient Education Pediatrics FU","Hematology Patient Education Pediatrics New","Immunology Patient Education Pediatrics FU","Immunology Patient Education Pediatrics New","Infectious Disease Patient Education Pediatrics FU","Infectious Disease Patient Education Pediatrics New","MED Diabetes Education FU","MED Diabetes Education New","MED Staff Clinic","MED TB Clinic FU","MED TB Clinic New","Medical Commission Nurse New","Medication Counseling FU","Medicine Patient Education FU","Medicine Patient Education New","Nephrology Patient Education FU","Nephrology Patient Education New","Nephrology Patient Education Pediatrics FU","Nephrology Patient Education Pediatrics New","Neuro Hydrotherapy FU","Neuro Occupational Therapy FU","Neuro Occupational Therapy New","Neuro Physiotherapy FU","Neuro Physiotherapy New","Neurology Patient Education FU","Neurology Patient Education New","Neurology Pediatrics Patient Education FU","Neurology Pediatrics Patient Education New","Neurosurgery Patient Education FU","Neurosurgery Patient Education New","Neurosurgery Patient Education Pediatrics FU","Neurosurgery Patient Education Pediatrics New","OB/GYN Breastfeeding Clinic FU","OB/GYN Breastfeeding Clinic New","OB/GYN Dietician FU","OB/GYN Dietician New","OB/GYN Obstetrics CTG FU","OB/GYN Obstetrics CTG New","OBS GYN Treatment RM FU","OBS GYN Treatment RM New","Occupational Therapy Adult Psychiatry FU","Occupational Therapy Adult Psychiatry New","Occupational Therapy Daycare FU","Occupational Therapy Daycare New","Occupational Therapy Hand FU","Occupational Therapy Hand New","Occupational Therapy Home Care FU","Occupational Therapy Home Care New","Occupational Therapy Oncology FU","Occupational Therapy Oncology New","Occupational Therapy Pediatrics FU","Occupational Therapy Pediatrics NDC New","Occupational Therapy Pediatrics New","Occupational Therapy Peds Feeding New","Occupational Therapy Seating Adult New","Occupational Therapy Seating Home Visit New","Older Adult Outreach FU","Older Adult Outreach New","Opht Refraction Fu","OPHT Refraction New","Ortho Physiotherapy FU","Ortho Physiotherapy New","PED Diet Gastro FU","PED Diet Gastro New","PED Diet General FU","PED Diet General New","PED Physiotherapy FU","PED Physiotherapy New","Pediatric Anesthesia FU","Pediatric Anesthesia New","Pediatric Dietary FU","Pediatric Dietary New","Pediatric Physiotherapy FU","Pediatric Physiotherapy New","Pediatric Psychiatry FU","Pediatric Swallow and Voice FU","Pediatrics Dietary FU","Pediatrics Dietary New","Pediatrics Physiotherapy FU","Pediatrics Physiotherapy New","Pediatrics Psychiatry FU","Pediatrics Swallow & Voice FU","Pediatrics Swallow & Voice New","PHYS Burn Physiotherapy FU","PHYS Burn Physiotherapy New","PHYS Occupational Therapy FU","PHYS Occupational Therapy New","PHYS Physical Fitness FU","PHYS Physical Fitness New","PHYS Physio Triage","PHYS Physiotherapy FU","PHYS Physiotherapy New","Physiotherapy Advanced Knee Class Group FU","Physiotherapy Antenatal FU","Physiotherapy Antenatal New","Physiotherapy Basic Knee Class Group FU","Physiotherapy FU","Physiotherapy Gen Body Exercise Group FU","Physiotherapy Hydro Chronic Pain Group FU","Physiotherapy Knee Class Individual FU","Physiotherapy Knee Pathway FU","Physiotherapy New","Physiotherapy Post Operative Fu","Physiotherapy Post Operative Group FU","Physiotherapy Post Operative New","Physiotherapy Postnatal FU","Physiotherapy Postnatal New","Physiotherapy Spine FU","Physiotherapy Trauma FU","Preventive Medicine New","Prosthetics New","Psychiatry Community FU","Psychiatry Daycare FU","Psychiatry Drug Dependency FU","Psychiatry Education FU","Psychiatry FU","Psychiatry Old Age FU","Psychology Daycare FU","Psychology FU","Psychology Pediatrics FU","Pulmonology Patient Education FU","Pulmonology Patient Education New","Pulmonology Patient Education Pediatrics FU","Pulmonology Patient Education Pediatrics New","Rehab CBR Accessibility FU","Rehab CBR Accessibility New","Rehab CBR FU","Rehab CBR Home Visit FU","Rehab CBR Home Visit New","Rehab CBR Initial Assessment FU","Rehab CBR Initial Assessment New","Rehab CBR Physical Mobility Training FU","Rehab CBR Physical Mobility Training New","Rehab Complex Care Pediatrics FU","Rehab Complex Care Pediatrics New","Rheumatology Patient Education FU","Rheumatology Patient Education New","School Health FU","Smoking Cessation FU","Smoking Cessation New","Social Work New","Speech Therapy New","Speech Therapy Pediatrics FU","Speech Therapy Pediatrics New","Speech Therapy Tech FU","Spine Pros & Ortho FU","Spine Pros & Ortho New","Stoma Care Patient Education FU","Stoma Care Patient Education New","Stoma Care Patient Education Pediatrics FU","Stoma Care Patient Education Pediatrics New","Surgery Patient Education FU","Surgery Patient Education New","TB Clinic Adult FU","TB Clinic Adult New","TB Clinic Medical Commision FU","TB Clinic Medical Commision New","TB Clinic Pediatric FU","TB Clinic Pediatric New","TB Contact Screen New","Urology Patient Education FU","Urology Patient Education New","Urology Patient Education Pediatrics FU","Urology Patient Education Pediatrics New","WH Diabetes Education FU","WH Diabetes Education New","Wound Care FU","Wound Care New","Wound Care Patient Education FU","Wound Care Patient Education New","Wound Care Patient Education Pediatrics FU","Wound Care Patient Education Pediatrics New","Plastic Surgery Burns FU","ENT Audiology FU","ENT Audiology New","CARD Rehab Counselling New","Dietetics New","Dietetics FU","Audiology Hearing Assessment FU","Audiology Hearing Assessment New","DIET Dietary Bariatric FU","DIET Dietary Bariatric New","Plastic Surgery Burns New","Plastic Surgery Burns Dressing FU","Medication Therapy Pharm New","Podiatry Diabetic FU","Podiatry Diabetic New")
+
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE18_Discount100_10100012178400100_Free_clinic_for_Pediatric'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+Patient(age!=null,age<=1,(subBillingGroup==null || (subBillingGroup !=null && subBillingGroup !="VI")),patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 12:33:15"),
+referralClinic!=null,referralClinic in ("641","642","643","644","645")
+) from $c.encounter
+//referralClinic in = ("PED Baby Clinic FU","PED Baby Clinic New","Ped Team Clinic Fu","Ped Team Clinic New","PED Psych FU")
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//----------------------------------------------------------------
+rule 'QPE19_Discount100_10100012178400100_100%_Discount_For_HMGH_Staff_Clinics'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+
+$c:Claim(patient != null,providerID=="101000034458"||providerID=="HMC Urgent Care Center")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(location!=null,location== "HMGH SMC",start!=null,start.getTime()>=getTimefromDate("21/04/2019 4:53:26")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+    printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//----------------------------------------------------------------
+rule 'QPE20_Discount100_10100012178400200_Free_Clinic_For_All_Facilities_New2'
+dialect 'mvel'
+salience -1001
+no-loop when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("05/09/2023 10:20:50"),encounterClinic !=null,
+encounterClinic in ("Wound Care New","Wound Care FU","PHYS Physio Triage","Pediatric Physiotherapy New","Pediatric Psychiatry FU","Pediatric Swallow and Voice FU","Pediatrics Dietary FU","Pediatrics Dietary New","Pediatrics Physiotherapy New","Pediatrics Psychiatry FU","Pediatrics Swallow & Voice FU","Pediatrics Swallow & Voice New","Pedorthics New","Physiotherapy Advanced Knee Class Group FU","Physiotherapy Antenatal New","Physiotherapy Basic Knee Class Group FU","Physiotherapy Gen Body Exercise Group FU","Physiotherapy Hydro Chronic Pain Group FU","Physiotherapy Knee Class Individual FU","Physiotherapy Knee Pathway FU","Physiotherapy Postnatal FU","Physiotherapy Postnatal New","Physiotherapy Spine FU","Physiotherapy Trauma FU","Prosthetics New","Psychiatry Community FU","Psychiatry Daycare FU","Psychiatry Drug Dependency FU","Psychiatry Education FU","Psychiatry Education New","Psychiatry New","Psychiatry Old Age FU","Psychology Daycare FU","Psychology Pediatrics FU","Audiology Cochlear Implant FU","Audiology Cochlear Implant New","PED Diet Gastro FU","PED Diet Gastro New","Rehab CBR Accessibility FU","Rehab CBR Accessibility New","Rehab CBR FU","Rehab CBR Home Visit FU","Rehab CBR Home Visit New","Rehab CBR Initial Assessment FU","Rehab CBR Initial Assessment New","Rehab CBR Physical Mobility Training FU","Rehab CBR Physical Mobility Training New","Rehab Complex Care Pediatrics FU","Rehab Complex Care Pediatrics New","Speech Therapy New","Speech Therapy Pediatrics FU","Speech Therapy Pediatrics New","Speech Therapy Tech FU","Spine Pros & Ortho FU","Spine Pros & Ortho New","TB Clinic Adult FU","TB Clinic Medical Commision New","TB Clinic Pediatric FU","PED Diet General FU","PED Diet General New","TB Clinic Pediatric New","School Health FU","Social Work New","Physiotherapy Post Operative Group FU","Smoking Cessation New","Smoking Cessation FU","Pediatric Anesthesia New","Pediatric Anesthesia FU","WH Diabetes Education New","WH Diabetes Education FU","Occupational Therapy Adult Psychiatry FU","Occupational Therapy Adult Psychiatry New","Occupational Therapy Daycare FU","Occupational Therapy Daycare New","Occupational Therapy Hand FU","Occupational Therapy Hand New","Occupational Therapy Home Care FU","Occupational Therapy Home Care New","Occupational Therapy Oncology FU","Occupational Therapy Oncology New","Occupational Therapy Pediatrics FU","Occupational Therapy Pediatrics NDC New","Occupational Therapy Pediatrics New","Occupational Therapy Peds Feeding New","Occupational Therapy Seating Adult New","Occupational Therapy Seating Home Visit New","Older Adult Outreach FU","Older Adult Outreach New","Ortho Physiotherapy FU","Ortho Physiotherapy New","Orthotics New","PHYS Physical Fitness FU","PHYS Physical Fitness New","Smoking Cessation Laser Therapy FU","Smoking Cessation Laser Therapy New","Opht Refraction Fu","Pediatric Physiotherapy FU","Pediatrics Physiotherapy FU","Physiotherapy Antenatal FU","Audiology Ototoxicity FU","Geriatric Home Supply","Occupational Therapy Peds Feeding FU","Occupational Therapy Pediatrics NDC FU","Occupational Therapy Seating Adult FU","Occupational Therapy Pediatrics Spine New","Occupational Therapy Social Com FU","Occupational Therapy Social Com New","Orthotics FU","Pedorthics FU","Physiotherapy Extremity FU","Physiotherapy Extremity New","Physiotherapy Hydro FU","Physiotherapy Knee Pathway New","Physiotherapy Hydro Post Operative Group FU","Physiotherapy Spine New","Physiotherapy Trauma New","Prosthetics FU","Prosthetics Breast FU","Prosthetics Breast New","OBS GYN Treatment RM FU","OBS GYN Treatment RM New","Wound Care Patient Education Pediatrics New","OB/GYN Patient Education FU","OB/GYN Patient Education New","TB Clinic Medical Commision FU","Preventive Medicine New","TB Contact Screen New","Sexual Health FU","PED Physiotherapy FU","PED Physiotherapy New","Pediatric Dietary FU","Pediatric Dietary New","PHYS Burn Physiotherapy FU","PHYS Burn Physiotherapy New","PHYS Occupational Therapy FU","PHYS Occupational Therapy New","PHYS Physiotherapy FU","PHYS Physiotherapy New","Sexual Health","Physiotherapy FU","Physiotherapy New","Autism Program Screening ","Early Intervention Group Therapy ","Early Intervention Program Screening ","Behavioral Therapy Pediatric FU","Urology Electromagnetic Therapy FU","Stoma Care Patient Education New","Stoma Care Patient Education FU","Stoma Care Patient Education Pediatrics New","Stoma Care Patient Education Pediatrics FU","Pulmonology Patient Education New","Pulmonology Patient Education FU","Pulmonology Patient Education Pediatrics New","Pulmonology Patient Education Pediatrics FU","Wound Care Patient Education New","Wound Care Patient Education FU","Wound Care Patient Education Pediatrics FU","Surgery Patient Education New","Surgery Patient Education FU","Physiotherapy Post Operative FU","Physiotherapy Post Operative New","Occupational Therapy Seating Peds New","Occupational Therapy Seating Peds FU","ON Dietetics FU","Rheumatology Patient Education New","Rheumatology Patient Education FU","Urology Patient Education New","Urology Patient Education FU","Urology Patient Education Pediatrics New","Urology Patient Education Pediatrics FU","OPHT Refraction New","Pediatrics Dietetics Reassessement FU","Pediatrics Dietetics Metabolic New","Pediatrics Dietetics Diabetic New","Pediatrics Dietetics Diabetic FU","PSY Psychiatry FU","Pediatrics Anesthesia New","Psychiatry Eating Disorder FU","Rehab CRS Home Visit New","Rehab CRS Home Visit FU","Rehab CRS Physical Mobility Training New","Rehab CRS Physical Mobility Training FU","Transplant Infectious Disease New","Transplant Infectious Disease FU","Patient Educator Gastroenterology IBD","Patient Educator Gastroenterology IBD","Audiology Research Clinic","Trauma Psychology New","Autism Family Education  Session","Lipidology Clinical Research Clinic FU","Lipidology Clinical Research Clinic NEW","Geriatric Physiotherapy FU","Geriatric Physiotherapy NEW","Cognitive Stimulation Therapy New","Cognitive Stimulation Therapy FU","Chemotherapy Patient Education","DEN Dental Clearance FU","Immunization clinic New","Immunization clinic FU","Influenza Follow Up Screening","TB Treatment","Physical Therapy Ant/Post New","Physical Therapy Ant/Post FU","Cognitive Assessment","SLP Pediatric Dysphagia Clinic New","SLP Pediatric Dysphagia Clinic follow up","Children Development Dietetics New","Children Development Dietetics FU")
+) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//----------------------------------------------------------------
+rule 'QPE21_Discount100_10100012178400200_Free_Clinic_for_all_Facilities_New'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000126787","101000096909","101000096910","101000096911","101000123973","101000123974","101000120720","101000120719"))
+$p:Patient(patientInsurance != null) from $c.patient
+$pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(encounterClinic != null,
+encounterClinic in ("URO Urology Procedure FU","CARD Rehab Education FU","CARD Rehab Exercise FU","SLP Trismus Clinic FU","SLP Trismus Clinic New","Pediatrics Well Baby CCHD Screening FU","Pediatrics Well Baby CCHD Screening New","COVID 19 New","COVID 19 FU","DEN Oral Max Consultation FU","DIET Dietary Baby FU","Dietetics FU","DIET Dietary Baby New","Dental Orthodontics Pediatrics FU","Dental Pedodontics FU","OPHT Post Op","Immunotherapy Injections New","Immunotherapy Injections FU","Hepatitis New","Hepatitis FU","Plastic Surgery Procedure New","Psychiatry FU","Psychology FU","Psychology New","Nursing Treatment New","Antenatal VBAC Follow UP","TB Clinic Adult New","Exhaled Nitric Oxide Test New","Patient/Family Educator New","Dental Pediatric Pedodontics FU","Antenatal Counseling FU","Antenatal Counseling New","Physiotherapy Massage FU","Urology Procedure FU","Child Birth Education Classes New","Metabolic Weight Management Diabetes Education New","Metabolic Weight Management Diabetes Education FU","Bariatric Physiotherapy New","Bariatric Physiotherapy FU","Surgery Bariatric Diete New","Dental Periodontics FU","Dental Periodontics Pediatrics FU","Dental Prosthodontics FU","Dietetics Psychiatry Daycare FU","Dietetics Psychiatry Daycare New","Neuro Hydrotherapy FU","Neuro Occupational Therapy FU","Neuro Occupational Therapy New","Neuro Physiotherapy FU","Neuro Physiotherapy New","Surgery Bariatric Diete FU","Physiotherapy Knee Clinic FU","Well Baby Audiology FU","Feeding and Swallowing Individual New","Feeding and Swallowing Individual FU","Pediatrics Feeding and swallowing FU","Pediatrics Feeding and swallowing New","Psychology Child and Adolescent New","Psychology Child and Adolescent FU","Child and Adolescent Nurse Intervntion FU","Autism Behavior Therapy FU","Trauma Psychology New","Trauma Psychology FU","Autism Occupational Therapy FU","Autism Special Education Therapy FU","DEN Pedodontics Clinic FU","Physiotherapy Knee Clinic New","Echo Exercise Stress","Echo Dobutamine Stress","ANA Anesthesia Check Male FU","ANA Anesthesia Check Male New","OB/GYN Obstetrics CTG FU","OB/GYN Obstetrics CTG New","High Risk COVID-19 Vaccine New","High Risk COVID-19 Vaccine FU","DEN Dental Hygiene FU","HAND and WRIST Physiotherapy FU","HAND and WRIST Physiotherapy new","CARD Rehab Assessment Final","ANA Anesthesia New","DEN General Dentist FU","DEN Maxillo Facial FU","OB/GYN Breastfeeding Clinic New","OB/GYN Breastfeeding Clinic FU","OB/GYN Dietician FU","DIET Dietary New","AK Stress Test","AK Musuculoskeletal US Clinic","AK ED Clinic","Diabetes Education Clinic","MED TB Clinic New","ANA Anesthesia Fu","Dietetics New","Dental Orthodontics FU","MED TB Clinic FU","Nursing Assessment New","Phone Consultation CAMHS","Psychiatry Injection","Anesthesia Private FU","Autism Development Observation Skill","Audiology Ototoxicity New","COVID-19 Vaccine New","COVID-19 Vaccine FU","CARD Rehab Assessment FU","CARD Rehab Assessment New","CARD Rehab Counselling FU","CARD Rehab Counselling New","Physiotherapy Triage","Pre Integration Evaluation (Individual)","CARD Rehab Dietician FU","Nursing Assessment FU","Acute Medical Assessment FU","OB/GYN Dietician New","CARD Rehab Dietician New","Cardiothoracic Wound Care","ENT Speech Therapy FU","ENT Speech Therapy New","Allergen and Antibiotic Challenge New","Medicine Patient Education FU","Voiding Dysfunction Patient Education FU","Leprosy Clinic New","Leprosy Clinic FU","DEN Endodontics Clinic FU","MED Staff Clinic","Medication Therapy Pharm FU","Medication Therapy Pharm New","Feeding and Swallowing Individual FU","Social Worker FU","Social Worker New","Physiotherapy Antenatal Class New","ACNS Advance Clinical Nurse Specialist New","ADHD Assessment FU","ADHD Assessment New","Adult Outreach FU","Anesthesia FU","Medical Commission Nurse New","Anesthesia New","Pediatric Diabetic Education New","Dietetics NDC New","Diabetic Insulin Education New","Diabetic Insulin Education FU","Diabetes Education New","Diabetes Education FU","Child Birth Education","OB/GYN Dietary/Well Baby FU","OB/GYN Dietary/Well Baby New","Six Minute Walk FU","Six Minute Walk New","Anesthesia Private New","Autism Intervention Clinic FU","Respiratory Therapy FU","Pediatric Diabetic Education FU","Psychotherapy FU","Psychotherapy New","Diabetic Dietician FU","Diabetic Dietician New","Bronchial Provocation New","High Risk Baby Audiology FU","Well Baby Audiology New","Medication Counseling FU","Audiology Hearing Aid Lab FU","Audiology Hearing Aid Lab New","Auditory Verbal Therapy FU","Auditory Verbal Therapy New","Autism Intervention Clinic New","Behavior Therapy Autism FU","Autism Family Education Session","Autism group therapy","Autism Day Program","Autism Program Screening ","Early intervention Family Education","Early Intervention Group Therapy ","Early Intervention Program Screening ","Behavior Therapy Autism New","Behavioral Therapy Pediatric New","Child Rehab Special Education FU","Child Rehab Special Education New","Community Care Adult FU","Community Care Adult New","Dental Endo Restorative FU","Dental Endodontics Clinic FU","Allergen and Antibiotic Challenge FU","Urostym Procedure FU","Urology Oncology Homecare FU","Urology Intravesical Therapy New","Urology Intravesical Therapy FU","Urology Home Catheterization FU","Urology Flowmetry New","Urology Flowmetry FU","Spirometry New","Spirometry Full New","Spirometry Full FU","Spirometry FU","Skin Prick Test New","Skin Prick Test FU","Polysomnography Study New","Polysomnography Screening New","Polysom Mask Fitting & PAP Titration New","Polysom Mask Fitting & PAP Titration FU","PFT Special Studies New","PFT Special Studies FU","ENT Patient Education New","ENT Patient Education FU","ENT Patient Education Pediatrics New","ENT Patient Education Pediatrics FU","Neurology Patient Education New","Neurology Patient Education FU","Neurology Pediatrics Patient Education New","Neurology Pediatrics Patient Education FU","Neurosurgery Patient Education New","Neurosurgery Patient Education FU","Neurosurgery Patient Education Pediatrics New","Neurosurgery Patient Education Pediatrics FU","Diabetes Education Pediatrics New","Diabetes Education Pediatrics FU","Nephrology Patient Education New","Nephrology Patient Education FU","Nephrology Patient Education Pediatrics New","Nephrology Patient Education Pediatrics FU","Treatment New","Treatment FU","Physiotherapy Antenatal Class FU","Hematology Patient Education Pediatrics New","Hematology Patient Education Pediatrics FU","Endocrinology Patient Education Pediatrics New","Endocrinology Patient Education Pediatrics FU","Anticoagulation Patient Education New","Anticoagulation Patient Education FU","Medicine Patient Education New","HH Telemonitoring New","HH Telemonitoring FU","Dental Beautiful Smile FU","High Risk Baby Audiology New","Dental DDSS FU","Dietetics NDC FU","Infectious Disease Patient Education Pediatrics New","Infectious Disease Patient Education Pediatrics FU","Immunology Patient Education Pediatrics New","Immunology Patient Education Pediatrics FU","Gastroenterology Patient Education Pediatrics New","Gastroenterology Patient Education Pediatrics FU","DIET Dietary FU","Pediatrics Dietetics Metabolic FU","Pediatrics Dietetics FU","MED Diabetes Education FU","MED Diabetes Education New","INTERVENTIONAL RADIOLOGY New","INTERVENTIONAL RADIOLOGY FU","ICH Clinic FU","ICH Clinic New","Non-3D Gait Analysis FU","Non-3D Gait Analysis New","Orthopedic Occupational Therapy FU","Orthopedic Occupational Therapy NEW")
+,start!=null,start.getTime()>=getTimefromDate("23/08/2023 8:26:32")
+) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ 	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+    update($act);
+end
+//--------------------------------------------------------
+rule 'QPE22_Discount100_10100012178400100_Infection'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,$code:code,$type:type)
+$CG: CodeGroup(code==$code,type==$type,name in("89","CNS"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/01/2014 1:37:11"),inchargeDoctorSpecialty != null,inchargeDoctorSpecialty in ("101000000604")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+ String msg = "set discount for ["+ $act.getCode()+"] to 100%.";
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE23_Discount100_10100012178400100_Free_clinic_for_all_facility_except_Al_Wakra_and_CD_Center'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID not in("101000024448","101000024451","Al Wakra Hospital & CD Center"))
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("01/05/2014 14:39:20"),
+referralClinic!=null,referralClinic in ("403","404","405","406","407","408","409","410","411","412","413","414","415","416","417","418","419","420","421","422","423","424","425","426","427","428","429","430","431","432","433","434","435","436","437","438","439","440","441","442","443","444","445","446","447","448","396","449","450","451","452","397","453","454","455","456","457","458","459","460","461","462","395","394","463","464","465","466","467","468","469","470","471","472","473","474","475","476","477","385","478","479","480","481","482","483","484","485","486","487","488","489","490","491","492","493","494","495","496","497","498","499","500","501","502","503","504","505","506","507","508","509","510","511","512","513","514","515","516","517","518","519","520","521","522","523","524","525","526","527","528","529","530","531","532","533","534","535","536","537","538","539","540","541","542","543","544","545","546","547","548","549","550","551","552","553","554","555","556","557","558","559","560","561","562","563","564","565","566","567","568","569","570","571","572","573","574","386","575","576","577","578","579","580","581","582","583","584","585","586","587","588","589","590","591","592","593","594","595","596","597","598","599","600","601","602","603","604","605","606","607","608","609","610","611","612","613","614","615","616","617","387","388","389","390","391","392","393","618","619","620","621","622","623","624","625","626","627","628","629","646","647","398","399","400")
+//referralClinic in = ("ADHD Assessment FU","ADHD Assessment New","Adult Outreach FU","AK ED Clinic","AK Musuculoskeletal US Clinic","AK Stress Test","ANA Anesthesia Check Male FU","ANA Anesthesia Check Male New","ANA Anesthesia Fu","ANA Anesthesia New","Anesthesia FU","Anesthesia New","Anesthesia Private New","Antenatal Counseling FU","Antenatal Counseling New","Anticoagulation Patient Education FU","Anticoagulation Patient Education New","Audiology Hearing Aid Lab FU","Audiology Hearing Aid Lab New","Auditory Verbal Therapy FU","Auditory Verbal Therapy New","Autism Intervention Clinic FU","Autism Intervention Clinic New","Behavior Therapy Autism FU","Behavior Therapy Autism New","Behavioral Therapy Pediatric FU","Behavioral Therapy Pediatric New","Cardiothoracic Wound Care","Child Rehab Special Education FU","Child Rehab Special Education New","Community Care Adult FU","Community Care Adult New","DEN Maxillo Facial FU","DEN Oral Max Consultation FU","DEN Pedodontics Clinic FU","Dental Endo Restorative FU","Dental Endodontics Clinic FU","Dental Orthodontics FU","Dental Orthodontics Pediatrics FU","Dental Pediatric Pedodontics FU","Dental Pedodontics FU","Dental Periodontics FU","Dental Periodontics Pediatrics FU","Dental Prosthodontics FU","Diabetes Education Clinic","Diabetes Education FU","Diabetes Education New","Diabetes Education Pediatrics FU","Diabetes Education Pediatrics New","DIET Dietary FU","DIET Dietary New","Dietetics NDC new","Dietetics Psychiatry Daycare FU","Dietetics Psychiatry Daycare New","Echo Dobutamine Stress","Echo Exercise Stress","Endocrinology Patient Education Pediatrics FU","Endocrinology Patient Education Pediatrics New","ENT Patient Education FU","ENT Patient Education New","ENT Patient Education Pediatrics FU","ENT Patient Education Pediatrics New","ENT Speech Therapy FU","ENT Speech Therapy New","Gastroenterology Patient Education Pediatrics FU","Gastroenterology Patient Education Pediatrics New","HAND and WRIST Physiotherapy FU","HAND and WRIST Physiotherapy New","Hematology Patient Education Pediatrics FU","Hematology Patient Education Pediatrics New","Immunology Patient Education Pediatrics FU","Immunology Patient Education Pediatrics New","Infectious Disease Patient Education Pediatrics FU","Infectious Disease Patient Education Pediatrics New","MED Diabetes Education FU","MED Diabetes Education New","MED Staff Clinic","MED TB Clinic FU","MED TB Clinic New","Medical Commission Nurse New","Medication Counseling FU","Medicine Patient Education FU","Medicine Patient Education New","Nephrology Patient Education FU","Nephrology Patient Education New","Nephrology Patient Education Pediatrics FU","Nephrology Patient Education Pediatrics New","Neuro Hydrotherapy FU","Neuro Occupational Therapy FU","Neuro Occupational Therapy New","Neuro Physiotherapy FU","Neuro Physiotherapy New","Neurology Patient Education FU","Neurology Patient Education New","Neurology Pediatrics Patient Education FU","Neurology Pediatrics Patient Education New","Neurosurgery Patient Education FU","Neurosurgery Patient Education New","Neurosurgery Patient Education Pediatrics FU","Neurosurgery Patient Education Pediatrics New","OB/GYN Breastfeeding Clinic FU","OB/GYN Breastfeeding Clinic New","OB/GYN Dietician FU","OB/GYN Dietician New","OB/GYN Obstetrics CTG FU","OB/GYN Obstetrics CTG New","OBS GYN Treatment RM FU","OBS GYN Treatment RM New","Occupational Therapy Adult Psychiatry FU","Occupational Therapy Adult Psychiatry New","Occupational Therapy Daycare FU","Occupational Therapy Daycare New","Occupational Therapy Hand FU","Occupational Therapy Hand New","Occupational Therapy Home Care FU","Occupational Therapy Home Care New","Occupational Therapy Oncology FU","Occupational Therapy Oncology New","Occupational Therapy Pediatrics FU","Occupational Therapy Pediatrics NDC New","Occupational Therapy Pediatrics New","Occupational Therapy Peds Feeding New","Occupational Therapy Seating Adult New","Occupational Therapy Seating Home Visit New","Older Adult Outreach FU","Older Adult Outreach New","Opht Refraction Fu","OPHT Refraction New","Ortho Physiotherapy FU","Ortho Physiotherapy New","PED Diet Gastro FU","PED Diet Gastro New","PED Diet General FU","PED Diet General New","PED Physiotherapy FU","PED Physiotherapy New","Pediatric Anesthesia FU","Pediatric Anesthesia New","Pediatric Dietary FU","Pediatric Dietary New","Pediatric Physiotherapy FU","Pediatric Physiotherapy New","Pediatric Psychiatry FU","Pediatric Swallow and Voice FU","Pediatrics Dietary FU","Pediatrics Dietary New","Pediatrics Physiotherapy FU","Pediatrics Physiotherapy New","Pediatrics Psychiatry FU","Pediatrics Swallow & Voice FU","Pediatrics Swallow & Voice New","PHYS Burn Physiotherapy FU","PHYS Burn Physiotherapy New","PHYS Occupational Therapy FU","PHYS Occupational Therapy New","PHYS Physical Fitness FU","PHYS Physical Fitness New","PHYS Physio Triage","PHYS Physiotherapy FU","PHYS Physiotherapy New","Physiotherapy Advanced Knee Class Group FU","Physiotherapy Antenatal FU","Physiotherapy Antenatal New","Physiotherapy Basic Knee Class Group FU","Physiotherapy FU","Physiotherapy Gen Body Exercise Group FU","Physiotherapy Hydro Chronic Pain Group FU","Physiotherapy Knee Class Individual FU","Physiotherapy Knee Pathway FU","Physiotherapy New","Physiotherapy Post Operative Fu","Physiotherapy Post Operative Group FU","Physiotherapy Post Operative New","Physiotherapy Postnatal FU","Physiotherapy Postnatal New","Physiotherapy Spine FU","Physiotherapy Trauma FU","Preventive Medicine New","Prosthetics New","Psychiatry Community FU","Psychiatry Daycare FU","Psychiatry Drug Dependency FU","Psychiatry Education FU","Psychiatry FU","Psychiatry Old Age FU","Psychology Daycare FU","Psychology FU","Psychology Pediatrics FU","Pulmonology Patient Education FU","Pulmonology Patient Education New","Pulmonology Patient Education Pediatrics FU","Pulmonology Patient Education Pediatrics New","Rehab CBR Accessibility FU","Rehab CBR Accessibility New","Rehab CBR FU","Rehab CBR Home Visit FU","Rehab CBR Home Visit New","Rehab CBR Initial Assessment FU","Rehab CBR Initial Assessment New","Rehab CBR Physical Mobility Training FU","Rehab CBR Physical Mobility Training New","Rehab Complex Care Pediatrics FU","Rehab Complex Care Pediatrics New","Rheumatology Patient Education FU","Rheumatology Patient Education New","School Health FU","Smoking Cessation FU","Smoking Cessation New","Social Work New","Speech Therapy New","Speech Therapy Pediatrics FU","Speech Therapy Pediatrics New","Speech Therapy Tech FU","Spine Pros & Ortho FU","Spine Pros & Ortho New","Stoma Care Patient Education FU","Stoma Care Patient Education New","Stoma Care Patient Education Pediatrics FU","Stoma Care Patient Education Pediatrics New","Surgery Patient Education FU","Surgery Patient Education New","TB Clinic Adult FU","TB Clinic Adult New","TB Clinic Medical Commision FU","TB Clinic Medical Commision New","TB Clinic Pediatric FU","TB Clinic Pediatric New","TB Contact Screen New","Urology Patient Education FU","Urology Patient Education New","Urology Patient Education Pediatrics FU","Urology Patient Education Pediatrics New","WH Diabetes Education FU","WH Diabetes Education New","Wound Care FU","Wound Care New","Wound Care Patient Education FU","Wound Care Patient Education New","Wound Care Patient Education Pediatrics FU","Wound Care Patient Education Pediatrics New","Smoking Cessation Laser Therapy FU","Smoking Cessation Laser Therapy New","CARD Rehab Counselling New","Dietetics New","Dietetics FU")
+) from $c.encounter
+then
+    $act.setDiscountPercentage(100.0);
+    $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE24_Discount100_10100012178400100_Free_Clinics_All_Faclities'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("26/06/2019 9:17:01"),
+referralClinic!=null,referralClinic in("648","649","650","651","652","653","654","655","656","427","657","658","659","660","661","662","663","664","665","400","399","666","667","668","669","670","671","672","673","674","489","675","676","677","678","679","680","681","682","683","684","685","686","687","688","689","690","691","692","693","694","695","696","697","698","699","700","701","702","703","704","705","706","707","708","709","710","711","712","713","714","715","716","717","718","719","720","721","722","723","724","725","726","727","728","729","730","731","732","733","734","735","736","737","738","739","740","741","742","743","744")
+) from $c.encounter
+//referralClinic!=null,referralClinic in = ("Physiotherapy Antenatal Class New","Physiotherapy Antenatal Class FU","ACNS Advance Clinical Nurse Specialist New","Autism Behavior Therapy FU","Autism Development Observation Skill","Autism Occupational Therapy FU","Autism Special Education Therapy FU","Bariatric Physiotherapy FU","Bariatric Physiotherapy New","Behavior Therapy Autism New","CARD Rehab Assessment Final","CARD Rehab Assessment FU","CARD Rehab Assessment New","CARD Rehab Counselling FU","CARD Rehab Dietician FU","CARD Rehab Education FU","CARD Rehab Exercise FU","Child and Adolescent Nurse Intervntion FU","Diabetic Insulin Education New","Dietetics FU","Dietetics New","Feeding and Swallowing Individual FU","Feeding and Swallowing Individual FU","Feeding and Swallowing Individual New","Gastroenterology IBD FU","Gastroenterology IBD New","HH Telemonitoring FU","HH Telemonitoring New","Metabolic Weight Management Diabetes Education FU","Metabolic Weight Management Diabetes Education New","Neuro Physiotherapy New","Patient/Family Educator New","Pediatrics Feeding and swallowing FU","Pediatrics Feeding and swallowing New","Phone Consultation CAMHS","Physiotherapy Knee Clinic FU","Physiotherapy Triage","Plastic Surgery Procedure New","Pre Integration Evaluation (Individual)","Psychiatry Injection","Psychology Child and Adolescent FU","Psychology Child and Adolescent New","Psychology New","Surgery Bariatric Diete FU","Surgery Bariatric Diete New","Trauma Psychology FU","Trauma Psychology New","URO Urology Procedure FU","Urology Flowmetry FU","Urology Flowmetry New","Urology Intravesical Therapy FU","Urology Intravesical Therapy New","Urology Procedure FU","Urostym Procedure FU","Well Baby Audiology FU","Well Baby Audiology New","Nursing Assessment New","Nursing Assessment FU","High Risk Baby Audiology New","High Risk Baby Audiology FU","Urology Oncology Homecare FU","Urology Home Catheterization FU","Six Minute Walk New","Six Minute Walk FU","Skin Prick Test New","Skin Prick Test FU","Spirometry New","Spirometry FU","Spirometry Full FU","Spirometry Full New","Bronchial Provocation New","Allergen and Antibiotic Challenge New","Allergen and Antibiotic Challenge FU","Immunotherapy Injections New","Immunotherapy Injections FU","Polysom Mask Fitting & PAP Titration New","Polysom Mask Fitting & PAP Titration FU","Polysomnography Screening New","Polysomnography Study New","Exhaled Nitric Oxide Test New","Respiratory Therapy FU","Physiotherapy Massage FU","Psychotherapy New","Psychotherapy FU","Medication Therapy Pharm FU","Nursing Treatment New","Acute Medical Assessment FU","Diabetic Dietician New","Diabetic Dietician FU","OB/GYN Dietary/Well Baby New","OB/GYN Dietary/Well Baby FU","Child Birth Education","Social Worker New","Social Worker FU","CARD Rehab Dietician New","Treatment New","Treatment FU","PFT Special Studies FU","PFT Special Studies New","Physiotherapy Knee Clinic New","Trauma Psychology New")
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE25_Discount100_10100012178400200_Free_clinic_for_all_facilities_New3'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(encounterClinic != null,
+encounterClinic in ("Bariatric Medicine Diet New","Bariatric Medicine Diet FU","Vaccination New","Vaccination FU","Weight Management Diet FU","Weight Management Diet New","Nephrology Diet FU","Nephrology Diet New","Chest Physiotherapy New","Chest Physiotherapy FU","Lung Transplant Physiotherapy FU","Dietetics IMC New","Dietetics IMC FU","PD Patient Education","Neurosurgery Anesthesia New","Neurosurgery Anesthesia FU","Ophthalmology Vision Rehabilitation FU","Ophthalmology Vision Rehabilitation New","Ophthalmology Contact Lens FU","Ophthalmology Contact Lens New","Ophthalmology Low Vision New","Urology Andrology Education","Ophthalmology Low Vision FU","Physiotherapy Gyn New","Baby Therapy FU","Baby Therapy New","Lung Transplant Physiotherapy New","Occupational Therapy Burns New","Occupational Therapy Burns FU","Clip And Stitch Removal","SLP - Adult Fluency Disorders Clinic New","SLP- Laryngectomy New","SLP- Adult Communication Aids New","SLP - Adult Fluency Disorders Clinic Fu","SLP- Laryngectomy Fu","SLP- Adult Communication Aids Fu","Special Education Assessment New","Special Education Assessment Follow Up","Special Education treatment New","Special Education Treatment FU","Psychiatry Post Discharge","Dietary Product New","Dietary Product FU","OB/GYN NDC Obs & Gyn Dietary New","OB/GYN NDC Obs & Gyn Dietary FU","OB/GYN Diabetes Education New","OB/GYN Diabetes Education FU","Cardiology Patient Education New","Cardiology Patient Education FU","Geriatric Patient Education New","Geriatric Patient Education FU","Oncology Home Injection")
+,start!=null,start.getTime()>=getTimefromDate("23/01/2024 13:35:13")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+ String msg = "set discount for ["+ $act.getCode()+"] to 100%.";
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE26_Discount100_10100012178400100_Free_clinic_for_AWH'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID=="101000024448"||providerID=="Al Wakra Hospital")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("11/01/2020 12:00:00"),
+referralClinic!=null,referralClinic in ("89","90","91","92","93","94","95","119","131","370","201","371","177","176","178","132","128","155","179","180","181","182","112","113","141","142","153","154","202","203","225","226","136","135","238","208","209","372","373","204","205","221","222","223","224","228","229","374","375","72","73","376","377","118","227","210","87","88","96","97","106","107","108","109","110","111","114","115","116","117","120","121","122","124","125","126","127","133","134","164","165","166","167","183","184","185","186","187","188","189","190","191","192","193","194","195","196","197","198","199","200","70","71","211","212","213","214","215","216","217","218","219","220","230","231","232","233","234","235","236","237","242","243","244","245","247","248","249","250","251","252","253","289","156","246","293","254","259","260","261","262","263","264","265","266","267","268","269","276","277","278","279","280","281","288","290","291","292","272","275","240","207","206","123","98","99","298","18","19","140","139","169","168","171","170","283","282","285","284","173","172","175","174","130","129","161","160","163","162","256","255","258","257","300","299","302","301","148","147","138","137","287","286","101","100","159","158","271","270","295","294","297","296","152","151","150","149","144","143","102","103","104","105","239","241","157","145","146","378","379","380","381")
+) from $c.encounter
+//AND referralClinic!=null,referralClinic in = ("1","6","12","14","59","84","90","91","92","96","97","98","99","110","112","115","118","119","138","139","150","151","184","196","213","214","292","293","361","362","385","386","459","460","498","514","515","531","532","556","557","560","561","562","563","564","565","566","567","568","569","570","656","662","682","708","716","717","720","722","723","724","725","726","727","728","729","730","733","734","735","737","742","743","745","747","749","753","754","765","766","767","769","770","771","772","773","774","775","776","777","778","779","780","781","782","783","784","785","786","787","790","791","795","796","797","798","799","800","801","804","806","807","809","810","811","812","813","814","815","816","817","818","819","820","833","834","836","838","840","844","846","1012","1015","1016","1017","1021","1025","1026","1027","1028","1029","1030","1031","1032","1033","1034","1035","1051","1052","1053","1054","1055","1056","1057","1059","1060","1061","1062","1064","1067","1073","1074","1076","1078","1079","1081","1665","1666","1667","1668","1669","1670","1671","1672","1673","1674","1675","1676","1677","1678","1679","1680","1681","1682","1683","1684","1685","1686","1687","1688","1689","1690","1691","1692","1693","1694","1695","1696","1697","1698","1699","1700","1701","1702","1703","1704","1705","1706","1707","1708","1709","1710","1711","1712","1713","1714","1715","1716","1737","1738","1739","1740","1743","1744","1746","1752","1753","1806","1807","1967","1968")
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+ String msg = "set discount for ["+ $act.getCode()+"] to 100%.";
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//--------------------------------------------------------
+rule 'QPE27_Discount100_10100012178400100_Free_Clinics'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null,providerID!="101000024451")
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("24/10/2014 15:19:32"),
+referralClinic!=null,referralClinic in ("745","746","747","748","749","750","751","752","753","754","755","756","757","758","759","760","761","762","763","764","765","766","767","768","769","770","771","772","773","774","775","776","777","778","779","780","781","782","399","400")
+) from $c.encounter
+//AND referralClinic!=null,referralClinic in ("Anesthesia Private FU","DEN Dental Hygiene FU","DEN Endodontics Clinic FU","DEN General Dentist FU","Dental Beautiful Smile FU","Dental DDSS FU","Diabetic Insulin Education FU","DIET Dietary Baby FU","DIET Dietary Baby New","Dietetics NDC FU","OB/GYN Patient Education FU","OB/GYN Patient Education New","Occupational Therapy Pediatrics NDC FU","Occupational Therapy Pediatrics Spine New","Occupational Therapy Peds Feeding FU","Occupational Therapy Seating Adult FU","Occupational Therapy Seating Peds FU","Occupational Therapy Seating Peds New","Occupational Therapy Social Com FU","Occupational Therapy Social Com New","ON Dietetics FU","Pediatrics Anesthesia New","Pediatrics Dietetics Reassessement FU","Physiotherapy Extremity FU","Physiotherapy Extremity New","Physiotherapy Hydro FU","Physiotherapy Hydro Post Operative Group FU","Physiotherapy Knee Pathway New","Physiotherapy Spine New","Physiotherapy Trauma New","Psychiatry Education New","Pedorthics New","Pedorthics FU","Orthotics New","Orthotics FU","Prosthetics FU","Prosthetics Breast New","Prosthetics Breast FU","Dietetics New","Dietetics FU")
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//----------------------------------------------------------
+//RHMC-143
+rule 'QPE28_Discount100_10100012178400100_Staff_Clinic_Consultation'
+dialect 'mvel'
+salience -1001
+no-loop
+when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,serviceItemSerialNumber in ("101000096909","101000096911"))
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(location!=null,location in ("HG SMC ANTENATAL","HG SMC C19 Post-T","HG SMC C19 Pre-T","HG SMC C19 RAT","HG SMC C19 SExpo","HG SMC Contracep","HG SMC COV19 Exposure","HG SMC COV19 Post-Travel","HG SMC COV19 Pre-Travel","HG SMC COV19 RAT","HG SMC DENTAL","HG SMC GP","HG SMC HealthEdu","HG SMC NCD","HG SMC PreEmp","HG SMC Procedure","HG SMC Psych","HG SMC Rad")
+,start!=null,start.getTime()>=getTimefromDate("15/03/2017 14:03:37")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
+//------------------------------------------------------------------
+//RHMC-144
+rule 'QPE29_Discount100_10100012178400100_Followup_Free_Warfarin_Podiatry'
+ dialect 'mvel'
+ salience -1001
+ no-loop
+ when
+$c:Claim(patient != null)
+$act: Activity(discount==null,$list:list,list!=null,list>0,$quantity:quantity,$quantity!=null,discount == null,$code:code,$type:type,modifier!=null,modifier=="F")
+
+$CG: CodeGroup(code==$code,type==$type,name =="CONSULTATION")
+	$p:Patient(patientInsurance != null) from $c.patient
+    $pi:PatientInsurance(cardType!=null,cardType==1/*HealthCard*/) from $p.patientInsurance
+Encounter(start!=null,start.getTime()>=getTimefromDate("31/07/2016 15:36:31")) from $c.encounter
+then
+ $act.setDiscountPercentage(100.0);
+ $act.setDiscount(roundDouble(((($list/100)*$act.getDiscountPercentage())*$quantity)));
+ //$act.setNet(0.0);
+	String msg = "Set "+$act.getDiscountPercentage()+"% discount for:" + $act.getCode();
+	 printLogInfo(drools.getRule().getName(),msg,$c.getLogInfo());
+	$act.addOutcome(Severity.INFO, drools.getRule().getName(),msg, "");
+ update($act);
+end
