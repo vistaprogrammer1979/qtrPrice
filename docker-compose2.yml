@@ -1,0 +1,433 @@
+version: '2'
+services:
+  
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+    networks:
+      kafka-network:
+        aliases:
+          - zookeeper
+  
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    hostname: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+    networks:
+      kafka-network:
+        aliases:
+          - kafka
+
+
+  # schema-registry:
+  #     container_name: schema-registry
+  #     image: confluentinc/cp-schema-registry:7.6.1
+  #     restart: always
+  #     ports:
+  #         - 8081:8081
+  #     depends_on:
+  #         - kafka
+  #     environment:
+  #         SCHEMA_REGISTRY_HOST_NAME: schema-registry
+  #         SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+  #     networks:
+  #       kafka-network:
+  #         aliases:
+  #           - schema-registry
+
+
+      
+  # kafdrop:
+  #   image: obsidiandynamics/kafdrop
+  #   restart: "no"
+  #   ports:
+  #     - "9000:9000"
+  #   environment:
+  #     KAFKA_BROKERCONNECT: "kafka:9092"
+  #    # JVM_OPTS: "-Xms16M -Xmx48M -Xss180K -XX:-TieredCompilation -XX:+UseStringDeduplication -noverify"
+  #   depends_on:
+  #     - "kafka"
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    depends_on:
+      - kafka
+    ports:
+      - 9090:8080
+    environment:
+      DYNAMIC_CONFIG_ENABLED: true
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+    networks:
+      kafka-network:
+        aliases:
+          - kafka-ui
+    #volumes:
+    #  - ~/kui/config.yml:/etc/kafkaui/dynamic_config.yaml
+
+  # mysql:
+  #   image: mysql:9.1.0
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: rootpassword
+  #     MYSQL_DATABASE: testdb
+  #     MYSQL_USER: testuser
+  #     MYSQL_PASSWORD: testpassword
+  #     MYSQL_LOG_BIN: mysql-bin
+  #     MYSQL_BINLOG_FORMAT: ROW
+  #     MYSQL_SERVER_ID: 1
+  #     MYSQL_EXTRA_FLAGS: "--log-bin=mysql-bin --binlog-format=row --server-id=223344"
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - mysql
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   hostname: mysql
+  #   container_name: mysql
+
+  # phpmyadmin:
+  #   image: phpmyadmin/phpmyadmin
+  #   ports:
+  #     - "8080:80"
+  #   environment:
+  #     PMA_HOST: mysql
+  #     PMA_USER: testuser
+  #     PMA_PASSWORD: testpassword
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - phpmyadmin
+
+  # debezium:
+  #   image: debezium/connect:2.7.3.Final
+  #   ports:
+  #     - "8083:8083"
+  #   container_name: debezium
+  #   hostname: debezium
+  #   environment:
+  #     BOOTSTRAP_SERVERS: kafka:9092
+  #     GROUP_ID: "1"
+  #     CONFIG_STORAGE_TOPIC: "debezium_configs"
+  #     OFFSET_STORAGE_TOPIC: "debezium_offsets"
+  #   networks:
+  #    kafka-network:
+  #     aliases:
+  #       - debezium
+  #    cache_thynk-cloud-micro-service:
+  #      aliases:
+  #        - debezium
+  #   depends_on:
+  #     - kafka
+  #     - mysql
+
+  # kafka_connect:
+  #   image: debezium/connect:3.0.0.Final
+  #   container_name: kafka_connect
+  #   environment:
+  #     BOOTSTRAP_SERVERS: kafka:9092
+  #     GROUP_ID: "1"
+  #     CONFIG_STORAGE_TOPIC: debezium_configs
+  #     OFFSET_STORAGE_TOPIC: debezium_offsets
+  #     STATUS_STORAGE_TOPIC: debezium_status
+  #     CONNECT_REST_ADVERTISED_HOST_NAME: kafka_connect
+  #     CONNECT_REST_PORT: 8083
+  #     CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+  #     CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+  #     CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: false
+  #     CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: false
+  #     CONNECT_PLUGIN_PATH: /kafka/connect
+  #   ports:
+  #     - 8083:8083
+  #   depends_on:
+  #     - kafka
+  #   volumes:
+  #     - connect_data:/kafka/connect
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - kafka_connect 
+  #     cache_thynk-cloud-micro-service:
+  #       aliases:
+  #         - kafka_connect
+
+  # kafka_connect_cp1:
+  #   image: fieldengineering/redis-kafka-connect
+  #   container_name: kafka_connect_cp1
+  #   environment:
+  #     CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+  #     CONNECT_GROUP_ID: "3"
+  #     CONNECT_CONFIG_STORAGE_TOPIC: cpk1_configs
+  #     CONNECT_OFFSET_STORAGE_TOPIC: cpk1_offsets
+  #     CONNECT_STATUS_STORAGE_TOPIC: cpk1_status
+  #     CONNECT_REST_ADVERTISED_HOST_NAME: kafka_connect_cp1
+  #     CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_REST_PORT: 8083
+  #     CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+  #     CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+  #     CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: false
+  #     CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: false
+  #     CONNECT_PLUGIN_PATH: /kafka/connect
+  #   ports:
+  #     - 8085:8083
+  #   depends_on:
+  #     - kafka
+  #   volumes:
+  #     - connect_cpk1_data:/kafka/connect
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - kafka_connect_cp1
+  #     cache_thynk-cloud-micro-service:
+  #       aliases:
+  #         - kafka_connect_cp1
+
+  # cascade-redis-connect:
+  #   image: fieldengineering/redis-kafka-connect
+  #   hostname: cascade-redis-connect
+  #   container_name: cascade-redis-connect
+  #   depends_on:
+  #       - kafka
+  #       - schema-registry
+  #   ports:
+  #       - 8088:8083
+  #   environment:
+  #     CONNECT_BOOTSTRAP_SERVERS: 'kafka:9092'
+  #     CONNECT_REST_ADVERTISED_HOST_NAME: cascade-redis-connect
+  #     CONNECT_GROUP_ID: compose-connect-group
+  #     CONNECT_CONFIG_STORAGE_TOPIC: cascade-redis-connect-configs
+  #     CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+  #     CONNECT_OFFSET_STORAGE_TOPIC: cascade-redis-connect-offsets
+  #     CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_STATUS_STORAGE_TOPIC: cascade-redis-connect-status
+  #     CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+  #     CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+  #     CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  #     # CLASSPATH required due to CC-2422
+  #     #CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-7.2.0.jar
+  #     #CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+  #     #CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+  #     CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+  #     CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - cascade-redis-connect
+  #     cache_thynk-cloud-micro-service:
+  #       aliases:
+  #         - cascade-redis-connect
+
+  # kafka-connect-cp2:
+  #   image: confluentinc/cp-kafka-connect:7.7.1
+  #   depends_on:
+  #     - kafka
+  #     - schema-registry
+  #     - mongo
+  #   environment:
+  #     CONNECT_BOOTSTRAP_SERVERS: kafka:9092
+  #     CONNECT_REST_ADVERTISED_HOST_NAME: kafka_connect_cp2
+  #     CONNECT_GROUP_ID: "mongo-sink-connector"
+  #     CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs-cp2"
+  #     CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+  #     CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets-cp2"
+  #     CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+  #     CONNECT_STATUS_STORAGE_TOPIC: "connect-statuses-cp2"
+  #     CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+  #     CONNECT_REST_PORT: 8083
+  #     CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+  #     CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://stg-cascade-kafka.heliumcloud.co:8081"
+  #     CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+  #     CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://stg-cascade-kafka.heliumcloud.co:8081"
+  #     CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+  #     CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+  #     CONNECT_PLUGIN_PATH: "/usr/share/java,/etc/kafka-connect/jars,/usr/share/confluent-hub-components"
+  #     CONNECT_MONGODB_SINK_BATCH_SIZE: 100
+  #     CONNECT_MONGODB_SINK_DOCUMENT_ID_STRATEGY: "com.mongodb.kafka.connect.sink.processor.id.strategy.PartialValueStrategy"
+  #   ports:
+  #     - "8089:8083"
+  #   volumes:
+  #     - ./connectors:/etc/kafka-connect/jars
+  #   command:
+  #     - "bash"
+  #     - "-c"
+  #     - |
+  #       # Download MongoDB Connector
+  #       confluent-hub install --no-prompt mongodb/kafka-connect-mongodb:latest
+  #       # Start Kafka Connect
+  #       /etc/confluent/docker/run
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - kafka-connect-cp2
+
+  # mongo:
+  #   image: mongo:latest
+  #   ports:
+  #     - "27017:27017"
+  #   environment:
+  #     MONGO_INITDB_DATABASE: "testdb"
+  #     MONGO_INITDB_ROOT_USERNAME: root
+  #     MONGO_INITDB_ROOT_PASSWORD: rootpassword
+  #   networks:
+  #     kafka-network:
+  #       aliases:
+  #         - mongo
+
+  # redis-sink:
+  #   image: redislabs/kafka-connect-redis:latest
+  #   ports:
+  #     - "8084:8084"  # Optional, for the Redis sink connector REST API
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  #     REDIS_HOST: "redis"
+  #     REDIS_PORT: "6379"
+  #     TOPIC_PREFIX: "dbserver1"
+  #   networks:
+  #    kafka-network:
+  #     aliases:
+  #       - redis-sink
+  # mongo:
+  #   image: mongo:latest
+  #   ports:
+  #     - "27017:27017"
+  jaeger:
+    image: jaegertracing/all-in-one:1.55.0
+    ports:
+      - "16686:16686" # the jaeger UI port
+      - "4317:4317" # the open telemetry grpc port for sending traces
+      # - "4318:4318" 
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=debug
+  # schema-registry:
+  #   image: confluentinc/cp-schema-registry:5.0.0-beta30
+  #   hostname: schema-registry
+  #   container_name: schema-registry-0
+  #   depends_on:
+  #     - zookeeper
+  #     - kafka
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     SCHEMA_REGISTRY_HOST_NAME: schema-registry
+  #     SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
+
+  # kafka-tools:
+  #   image: confluentinc/cp-kafka:5.4.0
+  #   hostname: kafka-tools
+  #   container_name: kafka-tools
+  #   command: ["tail", "-f", "/dev/null"]
+  #   network_mode: "host"
+
+
+  # control-center:
+  #   image: confluentinc/cp-enterprise-control-center:5.4.0
+  #   hostname: control-center
+  #   container_name: control-center-0
+  #   depends_on:
+  #     - zookeeper
+  #     - kafka
+  #     - schema-registry
+  #   ports:
+  #     - "9021:9021"
+  #   environment:
+  #     CONTROL_CENTER_BOOTSTRAP_SERVERS: 'kafka:9092'
+  #     CONTROL_CENTER_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+  #     CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+  #     CONTROL_CENTER_REPLICATION_FACTOR: 1
+  #     CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+  #     CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+  #     CONFLUENT_METRICS_TOPIC_REPLICATION: 1
+  #     PORT: 9021
+     
+  # kafka-connect:
+  #   image: confluentinc/cp-kafka-connect:latest
+  #   hostname: kafka-connect
+  #   ports:
+  #     - 8083:8083
+  #   environment:
+  #     - CONNECT_BOOTSTRAP_SERVERS=kafka:9092   Replace 'kafka' with your Kafka broker hostname or IP
+  #     - CONNECT_REST_PORT=8083
+  #     - CONNECT_GROUP_ID=connect-cluster
+  #     - CONNECT_CONFIG_STORAGE_TOPIC=connect-configs
+  #     - CONNECT_OFFSET_STORAGE_TOPIC=connect-offsets
+  #     - CONNECT_STATUS_STORAGE_TOPIC=connect-status
+  #     - CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR=1
+  #     - CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR=1
+  #     - CONNECT_STATUS_STORAGE_REPLICATION_FACTOR=1
+  #     - CONNECT_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+  #     - CONNECT_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+  #     - CONNECT_INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+  #     - CONNECT_INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+  #     - CONNECT_LOG4J_LOGGERS=org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR
+  #     - CONNECT_REST_ADVERTISED_HOST_NAME=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+  #   volumes:
+  #     - ./plugins:/usr/share/java/kafka-connect/jars  # Replace './plugins' with the path to your connector plugins directory
+  
+  # cascade-neo4j:
+  #   image: neo4j:5.25.1-community
+  #   restart: always
+  #   container_name: cascade-neo4j
+  #   hostname: cascade-neo4j
+  #   ports:
+  #       - 7474:7474
+  #       - 7687:7687
+  #   networks:
+  #       kafka-network:
+  #           aliases:
+  #               - neo4j
+  #   volumes:
+  #       - cascade-neo4j-data:/data
+ 
+  # minio:
+  #   image: minio/minio
+  #   container_name: minio
+  #   restart: always
+  #   volumes:
+  #     - minio-storage:/data
+  #   command: server --address ":9000" --console-address ":9090" /data
+  #   environment:
+  #     MINIO_ROOT_USER: root
+  #     MINIO_ROOT_PASSWORD: P@ssw0rd123
+  #   networks:
+  #     kafka-network:
+  #      aliases:
+  #       - minio
+
+ 
+volumes:
+  # mysql-data:
+  # connect_data:
+  # connect_cpk1_data:
+  redis_data:
+  # cascade-neo4j-data:
+  # minio-storage:
+
+networks:
+  cache_thynk-cloud-micro-service:
+    external: true
+  kafka-network:

@@ -1,0 +1,84 @@
+#version: '3.3'
+#
+#services:
+#  redis:
+#    image: redis:latest
+#    restart: always
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - C:\redis\data:/root/redis
+#      - C:\redis\redis.conf:/usr/local/etc/redis/redis.conf
+#    environment:
+##      - REDIS_PASSWORD=N4_x37hSgP&uwMrr
+##      - REDIS_USERNAME=redis_username
+#      - REDIS_PORT=6379
+#      - REDIS_DATABASES=16
+
+
+version: "3.3"
+services:
+  thynk-cloud-micro-service-redis:
+   image: redis:7.2.4-alpine
+   hostname: thynk-cloud-micro-service-redis
+   restart: always
+   container_name: thynk-cloud-micro-service-redis
+   networks:
+     thynk-cloud-micro-service:
+       aliases:
+         - thynk-cloud-micro-service-redis
+   command: redis-server /usr/local/etc/redis/redis.conf
+   ports:
+     - 6379:6379
+   volumes:
+     - redis_data_1:/data
+     - redis_logs_1:/var/log/redis
+     - ./redis.conf:/usr/local/etc/redis/redis.conf
+     
+      
+  consul:
+    image: hashicorp/consul:1.18.1
+    volumes:
+      - C:\consul-persistence:/bitnami
+    networks:
+      - thynk-cloud-micro-service
+    ports:
+      - 8500:8500
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - CONSUL_HEALTH_CHECK_DEREGISTER=1s
+
+
+  redis_insight:
+    image: redis/redisinsight:latest
+    container_name: redis_insight
+    restart: always
+    ports:
+      - 5540:5540
+    networks:
+      thynk-cloud-micro-service:
+        aliases:
+          - thynk-cloud-micro-service-redis_insight
+
+
+
+
+
+#
+#volumes:
+#  redis_volume_data:
+#  redis_insight_volume_data:
+
+networks:
+  thynk-cloud-micro-service:
+volumes:
+  redis_data:
+  redis_logs:
+  redis_config:
+  redis_data_1:
+  redis_logs_1:
+  redis_config_1:
+  redis_data_3:
+  redis_logs_3:
+  redis_config_3:
